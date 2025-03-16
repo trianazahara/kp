@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\InternController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\AdminController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,6 +32,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/mentors', [InternController::class, 'getMentors']);
         Route::get('/{id}', [InternController::class, 'getDetail']);
         
+        // New routes for Data Magang sub-menu
+        Route::get('/management/data', [InternController::class, 'getManagementData']);
+        Route::get('/positions/availability', [InternController::class, 'getPositionsAvailability']);
+        
         // Routes restricted to superadmin and admin roles
         Route::middleware('role:superadmin,admin')->group(function () {
             Route::post('/add', [InternController::class, 'add']);
@@ -51,14 +56,28 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
+    // History routes - new routes for Riwayat sub-menu
+    Route::prefix('history')->group(function () {
+        Route::get('/data', [InternController::class, 'getHistoryData']);
+        Route::get('/scores', [AssessmentController::class, 'getHistoryScores']);
+    });
+
     // API routes untuk pengaturan profil
-Route::middleware('auth:sanctum')->prefix('settings')->group(function () {
-    Route::get('/profile', [App\Http\Controllers\SettingsController::class, 'getProfile']);
-    Route::put('/profile', [App\Http\Controllers\SettingsController::class, 'editProfileApi']);
-    Route::post('/profile/picture', [App\Http\Controllers\SettingsController::class, 'uploadProfilePictureApi']);
-    Route::delete('/profile/picture', [App\Http\Controllers\SettingsController::class, 'deletePhotoApi']);
-    Route::put('/password', [App\Http\Controllers\SettingsController::class, 'changePasswordApi']);
-});
+    Route::prefix('settings')->group(function () {
+        Route::get('/profile', [App\Http\Controllers\SettingsController::class, 'getProfile']);
+        Route::put('/profile', [App\Http\Controllers\SettingsController::class, 'editProfileApi']);
+        Route::post('/profile/picture', [App\Http\Controllers\SettingsController::class, 'uploadProfilePictureApi']);
+        Route::delete('/profile/picture', [App\Http\Controllers\SettingsController::class, 'deletePhotoApi']);
+        Route::put('/password', [App\Http\Controllers\SettingsController::class, 'changePasswordApi']);
+    });
+    
+    // Admin management routes
+    Route::prefix('admin')->middleware('role:superadmin')->group(function () {
+        Route::get('/', [AdminController::class, 'index']);
+        Route::post('/add', [AdminController::class, 'add']);
+        Route::put('/{id}', [AdminController::class, 'update']);
+        Route::delete('/{id}', [AdminController::class, 'delete']);
+    });
     
     // Report routes
     Route::prefix('reports')->group(function () {
@@ -69,3 +88,11 @@ Route::middleware('auth:sanctum')->prefix('settings')->group(function () {
 
 // Public route for checking availability (if needed without auth)
 Route::get('/interns/check-availability', [InternController::class, 'checkAvailability']);
+
+// Untuk submenu Data Magang
+Route::get('/interns/management', [InternController::class, 'managementIndex'])->name('interns.management');
+Route::get('/interns/positions', [InternController::class, 'positionsIndex'])->name('interns.positions');
+
+// Untuk submenu Riwayat
+Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
+Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');

@@ -47,6 +47,29 @@ Route::prefix('settings')->name('settings.')->middleware('auth')->group(function
     Route::put('/password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('password.change');
 });
 
+// Web Routes
+Route::get('/dashboard/interns', [App\Http\Controllers\InternController::class, 'index'])->name('interns.management');
+Route::get('/dashboard/interns/positions', [App\Http\Controllers\InternController::class, 'checkPositionsPage'])->name('interns.positions');
+Route::get('/dashboard/interns/add', [App\Http\Controllers\InternController::class, 'addPage'])->name('interns.add');
+Route::get('/dashboard/interns/edit/{id}', [App\Http\Controllers\InternController::class, 'editPage'])->name('interns.edit');
+Route::get('/dashboard/interns/detail/{id}', [App\Http\Controllers\InternController::class, 'detailPage'])->name('interns.detail');
+// Rute untuk tanda terima
+Route::get('/dashboard/interns/generate-receipt', [App\Http\Controllers\InternController::class, 'generateReceiptPage'])->name('interns.generate-receipt');
+Route::post('/dashboard/interns/download-receipt', [App\Http\Controllers\InternController::class, 'generateReceipt'])->name('interns.download-receipt');
+// API Routes
+Route::prefix('api')->group(function () {
+    Route::get('/interns', [App\Http\Controllers\InternController::class, 'getAll'])->name('api.interns.getAll');
+    Route::post('/interns/add', [App\Http\Controllers\InternController::class, 'add'])->name('api.interns.add');
+    Route::get('/interns/detail/{id}', [App\Http\Controllers\InternController::class, 'getDetail'])->name('api.interns.getDetail');
+    Route::match(['POST', 'PUT'], '/interns/update/{id}', [App\Http\Controllers\InternController::class, 'update'])->name('api.interns.update');
+    Route::delete('/interns/delete/{id}', [App\Http\Controllers\InternController::class, 'delete'])->name('api.interns.delete');
+    Route::post('/interns/missing/{id}', [App\Http\Controllers\InternController::class, 'setMissingStatus'])->name('api.interns.setMissing');
+    Route::get('/interns/check-availability', [App\Http\Controllers\InternController::class, 'checkAvailability'])->name('api.interns.checkAvailability');
+    Route::get('/interns/stats', [App\Http\Controllers\InternController::class, 'getDetailedStats'])->name('api.interns.getStats');
+    Route::get('/interns/mentors', [App\Http\Controllers\InternController::class, 'getMentors'])->name('api.interns.getMentors');
+    Route::get('/interns/completing-soon', [App\Http\Controllers\InternController::class, 'getCompletingSoon'])->name('api.interns.getCompletingSoon');
+    Route::get('/interns/history', [App\Http\Controllers\InternController::class, 'getHistory'])->name('api.interns.getHistory');
+});
 // Rute yang memerlukan autentikasi
 Route::middleware(['auth'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');

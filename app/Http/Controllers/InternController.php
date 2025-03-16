@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator; 
+use PDF;
 use App\Models\PesertaMagang;
 use App\Models\DataMahasiswa;
 use App\Models\DataSiswa;
@@ -18,6 +20,76 @@ use App\Http\Controllers\NotificationController;
 
 class InternController extends Controller
 {
+    
+
+    /**
+ * Generate PDF tanda terima untuk peserta magang yang dipilih
+ */
+public function generateReceipt(Request $request)
+{
+    try {
+        $request->validate([
+            'intern_ids' => 'required|array',
+            'intern_ids.*' => 'exists:peserta_magang,id_magang'
+        ]);
+        
+        $internIds = $request->intern_ids;
+        
+        // Ambil data peserta yang dipilih
+        $selectedInterns = DB::table('peserta_magang')
+            ->select(
+                'peserta_magang.id_magang',
+                'peserta_magang.nama', 
+                'peserta_magang.nama_institusi',
+                'bidang.nama_bidang',
+                'users.nama as nama_mentor',
+                'peserta_magang.tanggal_masuk',
+                'peserta_magang.tanggal_keluar'
+            )
+            ->leftJoin('bidang', 'peserta_magang.id_bidang', '=', 'bidang.id_bidang')
+            ->leftJoin('users', 'peserta_magang.mentor_id', '=', 'users.id_users')
+            ->whereIn('peserta_magang.id_magang', $internIds)
+            ->get();
+        
+        // Debug: cek data yang diambil
+        if ($selectedInterns->isEmpty()) {
+            return redirect()->back()->with('error', 'Tidak ada data peserta magang yang dipilih');
+        }
+        
+        // Ubah format tanggal
+        $formattedInterns = [];
+        foreach ($selectedInterns as $intern) {
+            $formattedInterns[] = [
+                'id_magang' => $intern->id_magang,
+                'nama' => $intern->nama,
+                'nama_institusi' => $intern->nama_institusi,
+                'nama_bidang' => $intern->nama_bidang ?? 'UMUM',
+                'nama_mentor' => $intern->nama_mentor ?? '-',
+                'tanggal_masuk' => Carbon::parse($intern->tanggal_masuk)->format('d-m-Y'),
+                'tanggal_keluar' => Carbon::parse($intern->tanggal_keluar)->format('d-m-Y')
+            ];
+        }
+        
+        // Format tanggal saat ini dalam bahasa Indonesia
+        Carbon::setLocale('id');
+        $currentDate = Carbon::now()->translatedFormat('d F Y');
+        
+        // Buat PDF
+        $pdf = PDF::loadView('interns.receipt-pdf', [
+            'interns' => $formattedInterns,
+            'currentDate' => $currentDate
+        ]);
+        
+        // Set ukuran kertas landscape
+        $pdf->setPaper('a4', 'landscape');
+        
+        // Download PDF
+        return $pdf->download('tanda-terima-magang.pdf');
+        
+    } catch (\Exception $e) {
+        return redirect()->back()->with('error', 'Gagal membuat tanda terima: ' . $e->getMessage());
+    }
+}
     /**
      * Menentukan status peserta berdasarkan tanggal
      */
@@ -446,159 +518,153 @@ class InternController extends Controller
         }
     }
 
-    /**
-     * Tambah peserta magang baru
-     */
-    public function add(Request $request)
-    {
-        try {
-            // Validasi autentikasi
-            if (!auth()->check()) {
+/**
+ * Tambah peserta magang baru
+ */
+public function add(Request $request)
+{
+    try {
+        // Tambahkan debug log
+        Log::info('Add intern request data:', $request->all());
+
+        // Validasi autentikasi
+        if (!auth()->check()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized: User authentication required'
+            ], 401);
+        }
+
+        DB::beginTransaction();
+        $created_by = auth()->id();
+
+        // Validasi data dasar
+        $validated = $request->validate([
+            'nama' => 'required|string',
+            'jenis_peserta' => 'required|in:mahasiswa,siswa',
+            'nama_institusi' => 'required|string',
+            'jenis_institusi' => 'required|string',
+            'email' => 'nullable|email',
+            'no_hp' => 'nullable|string',
+            'bidang_id' => 'nullable|string',
+            'tanggal_masuk' => 'required|date',
+            'tanggal_keluar' => 'required|date|after:tanggal_masuk',
+            'detail_peserta' => 'required|string', // JSON string
+            'nama_pembimbing' => 'nullable|string',
+            'telp_pembimbing' => 'nullable|string'
+        ]);
+
+        // Parse detail_peserta
+        $detail = json_decode($validated['detail_peserta'], true);
+        if (!$detail) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Format detail peserta tidak valid'
+            ], 400);
+        }
+
+        // Validasi detail sesuai jenis peserta
+        if ($validated['jenis_peserta'] === 'mahasiswa') {
+            if (!isset($detail['nim']) || !isset($detail['jurusan'])) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized: User authentication required'
-                ], 401);
-            }
-    
-            DB::beginTransaction();
-            $created_by = auth()->id();
-    
-            $validated = $request->validate([
-                'nama' => 'required|string',
-                'jenis_peserta' => 'required|in:mahasiswa,siswa',
-                'nama_institusi' => 'required|string',
-                'jenis_institusi' => 'required|string',
-                'email' => 'nullable|email',
-                'no_hp' => 'nullable|string',
-                'bidang_id' => 'nullable|string',
-                'tanggal_masuk' => 'required|date',
-                'tanggal_keluar' => 'required|date|after:tanggal_masuk',
-                'detail_peserta' => 'required|array',
-                'nama_pembimbing' => 'nullable|string',
-                'telp_pembimbing' => 'nullable|string'
-            ]);
-    
-            // Validasi detail peserta
-            if (!isset($validated['detail_peserta'])) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Detail peserta wajib diisi'
+                    'message' => 'NIM dan jurusan wajib diisi untuk mahasiswa'
                 ], 400);
             }
-    
-            // Validasi data mahasiswa/siswa
-            if ($validated['jenis_peserta'] === 'mahasiswa') {
-                if (!isset($validated['detail_peserta']['nim']) || !isset($validated['detail_peserta']['jurusan'])) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'NIM dan jurusan wajib diisi untuk mahasiswa'
-                    ], 400);
-                }
-            } else if ($validated['jenis_peserta'] === 'siswa') {
-                if (!isset($validated['detail_peserta']['nisn']) || !isset($validated['detail_peserta']['jurusan'])) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'NISN dan jurusan wajib diisi untuk siswa'
-                    ], 400);
-                }
+        } else if ($validated['jenis_peserta'] === 'siswa') {
+            if (!isset($detail['nisn']) || !isset($detail['jurusan'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'NISN dan jurusan wajib diisi untuk siswa'
+                ], 400);
             }
-    
-            $status = $this->determineStatus($validated['tanggal_masuk'], $validated['tanggal_keluar']);
-    
-            // Insert data peserta magang
-            $id_magang = Str::uuid();
-            $pesertaMagang = PesertaMagang::create([
+        }
+
+        $status = $this->determineStatus($validated['tanggal_masuk'], $validated['tanggal_keluar']);
+
+        // Insert data peserta magang
+        $id_magang = Str::uuid();
+        $pesertaMagang = PesertaMagang::create([
+            'id_magang' => $id_magang,
+            'nama' => $validated['nama'],
+            'jenis_peserta' => $validated['jenis_peserta'],
+            'nama_institusi' => $validated['nama_institusi'],
+            'jenis_institusi' => $validated['jenis_institusi'],
+            'email' => $validated['email'] ?? null,
+            'no_hp' => $validated['no_hp'] ?? null,
+            'id_bidang' => $validated['bidang_id'] ?? null,
+            'tanggal_masuk' => $validated['tanggal_masuk'],
+            'tanggal_keluar' => $validated['tanggal_keluar'],
+            'status' => $status,
+            'nama_pembimbing' => $validated['nama_pembimbing'] ?? null,
+            'telp_pembimbing' => $validated['telp_pembimbing'] ?? null,
+            'mentor_id' => $request->input('mentor_id') ?? null,
+            'created_by' => $created_by,
+            'created_at' => Carbon::now()
+        ]);
+
+        // Insert detail peserta (mahasiswa/siswa)
+        if ($validated['jenis_peserta'] === 'mahasiswa') {
+            DataMahasiswa::create([
+                'id_mahasiswa' => Str::uuid(),
+                'id_magang' => $id_magang,
+                'nim' => $detail['nim'],
+                'fakultas' => $detail['fakultas'] ?? null,
+                'jurusan' => $detail['jurusan'],
+                'semester' => !empty($detail['semester']) ? (int)$detail['semester'] : null,
+                'created_at' => Carbon::now()
+            ]);
+        } else if ($validated['jenis_peserta'] === 'siswa') {
+            DataSiswa::create([
+                'id_siswa' => Str::uuid(),
+                'id_magang' => $id_magang,
+                'nisn' => $detail['nisn'],
+                'jurusan' => $detail['jurusan'],
+                'kelas' => $detail['kelas'] ?? null,
+                'created_at' => Carbon::now()
+            ]);
+        }
+
+        // // Buat notifikasi saat user terautentikasi
+        // try {
+        //     $this->createInternNotification(
+        //         auth()->id(),
+        //         $validated['nama'],
+        //         'menambah'
+        //     );
+        // } catch (\Exception $e) {
+        //     // Jika terjadi error saat membuat notifikasi, log saja tanpa rollback
+        //     Log::warning('Error creating notification: ' . $e->getMessage());
+        // }
+
+        DB::commit();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Data peserta magang berhasil ditambahkan',
+            'data' => [
                 'id_magang' => $id_magang,
                 'nama' => $validated['nama'],
                 'jenis_peserta' => $validated['jenis_peserta'],
                 'nama_institusi' => $validated['nama_institusi'],
-                'jenis_institusi' => $validated['jenis_institusi'],
-                'email' => $validated['email'] ?? null,
-                'no_hp' => $validated['no_hp'] ?? null,
-                'id_bidang' => $validated['bidang_id'] ?? null,
-                'tanggal_masuk' => $validated['tanggal_masuk'],
-                'tanggal_keluar' => $validated['tanggal_keluar'],
-                'status' => $status,
-                'nama_pembimbing' => $validated['nama_pembimbing'] ?? null,
-                'telp_pembimbing' => $validated['telp_pembimbing'] ?? null,
-                'mentor_id' => $request->input('mentor_id') ?? null,
-                'created_by' => $created_by,
-                'created_at' => Carbon::now()
-            ]);
-    
-            // Insert detail peserta (mahasiswa/siswa)
-            if ($validated['jenis_peserta'] === 'mahasiswa') {
-                $detail = $validated['detail_peserta'];
-                DataMahasiswa::create([
-                    'id_mahasiswa' => Str::uuid(),
-                    'id_magang' => $id_magang,
-                    'nim' => $detail['nim'],
-                    'fakultas' => $detail['fakultas'] ?? null,
-                    'jurusan' => $detail['jurusan'],
-                    'semester' => $detail['semester'] ?? null,
-                    'created_at' => Carbon::now()
-                ]);
-            } else if ($validated['jenis_peserta'] === 'siswa') {
-                $detail = $validated['detail_peserta'];
-                DataSiswa::create([
-                    'id_siswa' => Str::uuid(),
-                    'id_magang' => $id_magang,
-                    'nisn' => $detail['nisn'],
-                    'jurusan' => $detail['jurusan'],
-                    'kelas' => $detail['kelas'] ?? null,
-                    'created_at' => Carbon::now()
-                ]);
-            }
-    
-            // Buat notifikasi
-            $this->createInternNotification(
-                auth()->id(),
-                $validated['nama'],
-                'menambah'
-            );
-    
-            DB::commit();
-    
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Data peserta magang berhasil ditambahkan',
-                'data' => [
-                    'id_magang' => $id_magang,
-                    'nama' => $validated['nama'],
-                    'jenis_peserta' => $validated['jenis_peserta'],
-                    'nama_institusi' => $validated['nama_institusi'],
-                    'status' => $status,
-                    'created_by' => $created_by,
-                    'created_at' => Carbon::now()->toISOString()
-                ]
-            ], 201);
-    
-        } catch (\Illuminate\Database\QueryException $e) {
-            DB::rollBack();
-            Log::error('Error adding intern: ' . $e->getMessage());
-    
-            if ($e->getCode() == 23000) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Data sudah ada dalam sistem'
-                ], 400);
-            } else {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Terjadi kesalahan server',
-                    'error' => config('app.debug') ? $e->getMessage() : null
-                ], 500);
-            }
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error adding intern: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Terjadi kesalahan server',
-                'error' => config('app.debug') ? $e->getMessage() : null
-            ], 500);
-        }
+                'status' => $status
+            ]
+        ], 201);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Error adding intern: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Terjadi kesalahan server: ' . $e->getMessage(),
+            'debug' => config('app.debug') ? [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ] : null
+        ], 500);
     }
+}
 
     /**
      * Ambil detail peserta magang
@@ -678,10 +744,10 @@ class InternController extends Controller
         }
     }
 
-    /**
-     * Update data peserta magang
-     */
-    public function update(Request $request, $id)
+ /**
+ * Update data peserta magang
+ */
+public function update(Request $request, $id)
 {
     try {
         // Validasi autentikasi
@@ -692,11 +758,14 @@ class InternController extends Controller
             ], 401);
         }
 
+        // Ambil data dari request
+        $input = $request->json()->all() ?: $request->all();
+        
         DB::beginTransaction();
 
         $updated_by = auth()->id();
         
-        $validated = $request->validate([
+        $validated = Validator::make($input, [
             'nama' => 'required|string',
             'jenis_peserta' => 'required|in:mahasiswa,siswa',
             'nama_institusi' => 'required|string',
@@ -709,7 +778,7 @@ class InternController extends Controller
             'detail_peserta' => 'required|array',
             'nama_pembimbing' => 'nullable|string',
             'telp_pembimbing' => 'nullable|string'
-        ]);
+        ])->validate();
 
         // Cek keberadaan peserta
         $existingIntern = PesertaMagang::with([
@@ -746,7 +815,7 @@ class InternController extends Controller
             'status' => $newStatus,
             'nama_pembimbing' => $validated['nama_pembimbing'],
             'telp_pembimbing' => $validated['telp_pembimbing'],
-            'mentor_id' => $request->input('mentor_id') ?? null,
+            'mentor_id' => $input['mentor_id'] ?? null,
             'updated_by' => $updated_by,
             'updated_at' => Carbon::now()
         ]);
@@ -757,9 +826,9 @@ class InternController extends Controller
         DataMahasiswa::where('id_magang', $id)->delete();
         DataSiswa::where('id_magang', $id)->delete();
 
+        $detail = $validated['detail_peserta'];
+        
         if ($currentJenisPeserta === 'mahasiswa') {
-            $detail = $validated['detail_peserta'] ?? [];
-            
             if (!isset($detail['nim']) || !isset($detail['jurusan'])) {
                 throw new \Exception('NIM dan jurusan wajib diisi untuk mahasiswa');
             }
@@ -776,8 +845,6 @@ class InternController extends Controller
             ]);
 
         } else if ($currentJenisPeserta === 'siswa') {
-            $detail = $validated['detail_peserta'] ?? [];
-            
             if (!isset($detail['nisn']) || !isset($detail['jurusan'])) {
                 throw new \Exception('NISN dan jurusan wajib diisi untuk siswa');
             }
@@ -793,12 +860,12 @@ class InternController extends Controller
             ]);
         }
 
-        // Buat notifikasi
-        $this->createInternNotification(
-            auth()->id(),
-            $validated['nama'],
-            'mengupdate'
-        );
+        // // Buat notifikasi
+        // $this->createInternNotification(
+        //     auth()->id(),
+        //     $validated['nama'],
+        //     'mengupdate'
+        // );
 
         // Ambil data terbaru
         $updatedData = PesertaMagang::with(['dataMahasiswa', 'dataSiswa'])
@@ -813,6 +880,13 @@ class InternController extends Controller
             'data' => $updatedData
         ]);
 
+    } catch (ValidationException $e) {
+        DB::rollBack();
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'errors' => $e->errors()
+        ], 422);
     } catch (\Exception $e) {
         DB::rollBack();
         Log::error('Error updating intern: ' . $e->getMessage());
@@ -871,12 +945,12 @@ public function delete($id)
             throw new \Exception('Gagal menghapus data peserta magang');
         }
 
-        // Buat notifikasi penghapusan
-        $this->createInternNotification(
-            auth()->id(),
-            $internName,
-            'menghapus'
-        );
+        // // Buat notifikasi penghapusan
+        // $this->createInternNotification(
+        //     auth()->id(),
+        //     $internName,
+        //     'menghapus'
+        // );
 
         DB::commit();
         
@@ -1007,4 +1081,196 @@ public function getHistory(Request $request)
     }
 }
 
+
+
+
+
+/**
+ * Tampilkan halaman manajemen data peserta magang
+ */
+public function index(Request $request)
+{
+    try {
+        $this->updateInternStatuses();
+        
+        // Ambil semua bidang untuk dropdown filter
+        $bidangs = Bidang::select('id_bidang', 'nama_bidang')
+            ->orderBy('nama_bidang')
+            ->get();
+            
+        // Cek view yang digunakan
+        return view('interns.management', [
+            'bidangs' => $bidangs
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error loading management page: ' . $e->getMessage());
+        return redirect()->route('dashboard')->with('error', 'Terjadi kesalahan saat membuka halaman manajemen data.');
+    }
+}
+
+/**
+ * Tampilkan halaman formulir tambah peserta magang
+ */
+public function addPage(Request $request)
+{
+    try {
+        // Ambil semua bidang untuk dropdown
+        $bidangs = Bidang::select('id_bidang', 'nama_bidang')
+            ->orderBy('nama_bidang')
+            ->get();
+            
+        // Ambil mentor untuk penugasan
+        $mentors = [];
+        $user = auth()->user();
+        
+        if ($user->role === 'superadmin') {
+            $mentors = User::where('role', 'admin')
+                ->where('is_active', 1)
+                ->select('id_users', 'nama')
+                ->orderBy('nama')
+                ->get();
+        } else {
+            $mentors = User::where('id_users', $user->id_users)
+                ->select('id_users', 'nama')
+                ->get();
+        }
+            
+        return view('interns.add', [
+            'bidangs' => $bidangs,
+            'mentors' => $mentors
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error loading add page: ' . $e->getMessage());
+        return redirect()->route('interns.management')->with('error', 'Terjadi kesalahan saat membuka form tambah data.');
+    }
+}
+
+/**
+ * Tampilkan halaman edit peserta magang
+ */
+public function editPage(Request $request, $id)
+{
+    try {
+        // Ambil data peserta
+        $intern = PesertaMagang::with([
+                'dataMahasiswa', 
+                'dataSiswa'
+            ])
+            ->where('id_magang', $id)
+            ->first();
+            
+        if (!$intern) {
+            return redirect()->route('interns.management')
+                ->with('error', 'Data peserta magang tidak ditemukan.');
+        }
+        
+        // Ambil semua bidang untuk dropdown
+        $bidangs = Bidang::select('id_bidang', 'nama_bidang')
+            ->orderBy('nama_bidang')
+            ->get();
+            
+        // Ambil mentor untuk penugasan
+        $mentors = [];
+        $user = auth()->user();
+        
+        if ($user->role === 'superadmin') {
+            $mentors = User::where('role', 'admin')
+                ->where('is_active', 1)
+                ->select('id_users', 'nama')
+                ->orderBy('nama')
+                ->get();
+        } else {
+            $mentors = User::where('id_users', $user->id_users)
+                ->select('id_users', 'nama')
+                ->get();
+        }
+            
+        return view('interns.edit', [
+            'intern' => $intern,
+            'bidangs' => $bidangs,
+            'mentors' => $mentors
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error loading edit page: ' . $e->getMessage());
+        return redirect()->route('interns.management')->with('error', 'Terjadi kesalahan saat membuka form edit data.');
+    }
+}
+
+/**
+ * Tampilkan halaman detail peserta magang
+ */
+public function detailPage(Request $request, $id)
+{
+    try {
+        // Ambil data peserta
+        $intern = PesertaMagang::with([
+                'dataMahasiswa', 
+                'dataSiswa'
+            ])
+            ->leftJoin('bidang as b', 'peserta_magang.id_bidang', '=', 'b.id_bidang')
+            ->leftJoin('users as u', 'peserta_magang.mentor_id', '=', 'u.id_users')
+            ->select([
+                'peserta_magang.*', 
+                'b.nama_bidang',
+                'u.nama as mentor_name'
+            ])
+            ->where('peserta_magang.id_magang', $id)
+            ->first();
+            
+        if (!$intern) {
+            return redirect()->route('interns.management')
+                ->with('error', 'Data peserta magang tidak ditemukan.');
+        }
+        
+        // Set variabel penilaian sebagai null atau ambil dari database jika ada
+        $penilaian = null;
+        
+        // Cek jika model Penilaian ada dan uncomment kode berikut:
+        // $penilaian = Penilaian::where('id_magang', $id)->first();
+            
+        return view('interns.detail', [
+            'intern' => $intern,
+            'penilaian' => $penilaian
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error loading detail page: ' . $e->getMessage());
+        return redirect()->route('interns.management')
+            ->with('error', 'Terjadi kesalahan saat membuka detail data: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Tampilkan halaman cek ketersediaan posisi
+ */
+public function checkPositionsPage(Request $request)
+{
+    try {
+        // Dapatkan tanggal hari ini dalam format YYYY-MM-DD
+        $defaultDate = Carbon::now()->format('Y-m-d');
+        
+        return view('interns.positions', [
+            'defaultDate' => $defaultDate
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error loading positions page: ' . $e->getMessage());
+        return redirect()->route('dashboard')->with('error', 'Terjadi kesalahan saat membuka halaman cek posisi.');
+    }
+}
+
+/**
+ * Tampilkan halaman generate tanda terima untuk peserta terpilih
+ */
+   /**
+     * Tampilkan halaman untuk memilih peserta magang yang akan dicetak tanda terimanya
+     */
+    public function generateReceiptPage()
+    {
+        $interns = PesertaMagang::with(['bidang'])
+            ->orderBy('nama')
+            ->get();
+            
+        return view('interns.generate-receipt', [
+            'interns' => $interns
+        ]);
+    }
 }

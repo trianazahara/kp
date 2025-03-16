@@ -2,33 +2,60 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class DataSiswa extends Model
+class Bidang extends Model
 {
-    use HasFactory;
+    /**
+     * Nama tabel yang terkait dengan model.
+     *
+     * @var string
+     */
+    protected $table = 'bidang';
 
-    protected $table = 'data_siswa';
-    protected $primaryKey = 'id_siswa';
+    /**
+     * Primary key tabel.
+     *
+     * @var string
+     */
+    protected $primaryKey = 'id_bidang';
+
+    /**
+     * Tipe data primary key.
+     *
+     * @var string
+     */
     protected $keyType = 'string';
+
+    /**
+     * Mematikan auto-increment karena primary key adalah string.
+     *
+     * @var bool
+     */
     public $incrementing = false;
-    
+
+    /**
+     * Kolom-kolom yang dapat diisi (fillable).
+     *
+     * @var array
+     */
     protected $fillable = [
-        'id_siswa',
-        'id_magang',
-        'nisn',
-        'jurusan',
-        'kelas',
-        'created_at',
-        'updated_at'
+        'id_bidang',
+        'nama_bidang',
     ];
 
     /**
-     * Get the intern that owns this data
+     * Timestamps default (created_at & updated_at).
+     *
+     * @var bool
+     */
+    public $timestamps = true;
+
+    /**
+     * Mendapatkan relasi dengan peserta magang yang terkait dengan bidang ini.
      */
     public function pesertaMagang()
     {
-        return $this->belongsTo(Intern::class, 'id_magang', 'id_magang');
+        return $this->hasMany(PesertaMagang::class, 'id_bidang', 'id_bidang');
     }
 }
