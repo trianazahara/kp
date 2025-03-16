@@ -178,13 +178,13 @@ public function generateReceipt(Request $request)
                 throw new \Exception('Gagal mengupdate status peserta magang');
             }
 
-            // Buat notifikasi
-            $peserta = PesertaMagang::where('id_magang', $id)->first();
-            $this->createInternNotification(
-                auth()->id(),
-                $peserta->nama,
-                'menandai sebagai missing'
-            );
+            // // Buat notifikasi
+            // $peserta = PesertaMagang::where('id_magang', $id)->first();
+            // $this->createInternNotification(
+            //     auth()->id(),
+            //     $peserta->nama,
+            //     'menandai sebagai missing'
+            // );
 
             DB::commit();
             

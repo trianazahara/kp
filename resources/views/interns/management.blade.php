@@ -108,7 +108,7 @@
             Generate Tanda Terima
         </button>
     </div>
-
+    
     <!-- Delete Confirmation Modal -->
     <div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
@@ -119,6 +119,19 @@
                 <button id="confirm-delete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md">Hapus</button>
             </div>
             <input type="hidden" id="delete-intern-id">
+        </div>
+    </div>
+
+    <!-- Missing Status Confirmation Modal -->
+    <div id="missing-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Konfirmasi Status Missing</h3>
+            <p class="text-gray-500 mb-6">Apakah Anda yakin ingin menandai peserta magang ini sebagai missing?</p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-missing" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md">Batal</button>
+                <button id="confirm-missing" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md">Konfirmasi</button>
+            </div>
+            <input type="hidden" id="missing-intern-id">
         </div>
     </div>
 </div>
@@ -156,6 +169,12 @@
         const cancelDeleteBtn = document.getElementById('cancel-delete');
         const confirmDeleteBtn = document.getElementById('confirm-delete');
         const deleteInternId = document.getElementById('delete-intern-id');
+
+        // Missing modal elements
+        const missingModal = document.getElementById('missing-modal');
+        const cancelMissingBtn = document.getElementById('cancel-missing');
+        const confirmMissingBtn = document.getElementById('confirm-missing');
+        const missingInternId = document.getElementById('missing-intern-id');
 
         // Initial data load
         loadInterns();
@@ -223,6 +242,18 @@
             const id = deleteInternId.value;
             if (id) {
                 deleteIntern(id);
+            }
+        });
+
+        // Missing modal event listeners
+        cancelMissingBtn.addEventListener('click', function() {
+            missingModal.classList.add('hidden');
+        });
+
+        confirmMissingBtn.addEventListener('click', function() {
+            const id = missingInternId.value;
+            if (id) {
+                setMissingStatus(id);
             }
         });
 
@@ -385,7 +416,7 @@
                     missingBtn.innerHTML = '<i class="fas fa-flag"></i>';
                     missingBtn.title = 'Mark as Missing';
                     missingBtn.addEventListener('click', function() {
-                        markAsMissing(intern.id_magang);
+                        showMissingModal(intern.id_magang, intern.nama);
                     });
                     actionsDiv.appendChild(missingBtn);
                 }
@@ -428,31 +459,38 @@
             }
         }
 
-        // Function to mark an intern as missing
-        function markAsMissing(id) {
-            if (confirm('Apakah Anda yakin ingin menandai peserta ini sebagai missing?')) {
-                fetch("{{ url('api/interns/missing') }}/" + id, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': "{{ csrf_token() }}",
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        alert('Status berhasil diubah menjadi missing');
-                        loadInterns();
-                    } else {
-                        alert('Gagal mengubah status: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error marking as missing:', error);
-                    alert('Terjadi kesalahan saat mengubah status');
-                });
-            }
+        // Function to show missing confirmation modal
+        function showMissingModal(id, name) {
+            missingInternId.value = id;
+            document.querySelector('#missing-modal p').textContent = 
+                `Apakah Anda yakin ingin menandai peserta magang "${name}" sebagai missing?`;
+            missingModal.classList.remove('hidden');
+        }
+
+        // Function to set an intern status to missing
+        function setMissingStatus(id) {
+            fetch("{{ url('api/interns/missing') }}/" + id, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': "{{ csrf_token() }}",
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    missingModal.classList.add('hidden');
+                    alert('Status berhasil diubah menjadi missing');
+                    loadInterns();
+                } else {
+                    alert('Gagal mengubah status: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error marking as missing:', error);
+                alert('Terjadi kesalahan saat mengubah status');
+            });
         }
 
         // Function to show delete confirmation modal
