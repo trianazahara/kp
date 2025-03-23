@@ -8,8 +8,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use App\Models\Template;
+use PhpOffice\PhpWord\IOFactory;
+use Dompdf\Dompdf;
 
 class SettingsController extends Controller
 {
@@ -19,27 +21,27 @@ class SettingsController extends Controller
     public function index()
     {
         $user = Auth::user();
-        return view('settings.index', compact('user'));
+        $templates = Template::where('id_users', $user->id_users)
+                             ->where('active', 1)
+                             ->get();
+        return view('settings.index', compact('user', 'templates'));
     }
-    
+
     /**
      * Ambil data profil user
      */
     public function getProfile()
     {
         $user = Auth::user();
-        
-        // Jika tidak ada user terautentikasi
+
         if (!$user) {
             return response()->json(['message' => 'Profil tidak ditemukan.'], 404);
         }
-        
-        // Tambahkan URL lengkap untuk foto profil jika ada
+
         if ($user->profile_picture) {
             $user->profile_picture_url = asset('storage/' . $user->profile_picture);
         }
-        
-        // Ambil kolom yang dibutuhkan saja
+
         $userData = [
             'id_users' => $user->id_users,
             'username' => $user->username,
@@ -50,7 +52,7 @@ class SettingsController extends Controller
             'last_login' => $user->last_login,
             'role' => $user->role
         ];
-        
+
         return response()->json($userData);
     }
 
@@ -58,46 +60,43 @@ class SettingsController extends Controller
      * Update profil user
      */
     public function updateProfile(Request $request)
-    {
-        $user = Auth::user();
-        
-        // Validasi input
-        $validator = Validator::make($request->all(), [
-            'username' => 'nullable|string|unique:users,username,'.$user->id_users.',id_users',
-            'email' => 'nullable|email|unique:users,email,'.$user->id_users.',id_users',
-            'nama' => 'nullable|string|max:255',
-        ]);
+{
+    $user = Auth::user();
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
+    $validator = Validator::make($request->all(), [
+        'username' => 'nullable|string|unique:users,username,'.$user->id_users.',id_users',
+        'email' => 'nullable|email|unique:users,email,'.$user->id_users.',id_users',
+        'nama' => 'nullable|string|max:255',
+    ]);
 
-        // Pastikan minimal ada satu field yang diisi
-        if (!$request->username && !$request->email && !$request->nama) {
-            return redirect()->back()
-                ->with('error', 'Setidaknya satu kolom harus diisi untuk diperbarui.');
-        }
-
-        // Update data yang diisi
-        $data = [];
-        if ($request->filled('username')) {
-            $data['username'] = $request->username;
-        }
-        if ($request->filled('email')) {
-            $data['email'] = $request->email;
-        }
-        if ($request->filled('nama')) {
-            $data['nama'] = $request->nama;
-        }
-
-        $user->update($data);
-
-        return redirect()->route('settings.index')
-            ->with('success', 'Profil berhasil diperbarui.');
+    if ($validator->fails()) {
+        return redirect()->back()
+            ->withErrors($validator)
+            ->withInput();
     }
 
+    // Jika tidak ada field yang diisi, kembalikan tanpa error
+    if (!$request->filled('username') && !$request->filled('email') && !$request->filled('nama')) {
+        return redirect()->route('settings.index')
+            ->with('info', 'Tidak ada perubahan yang dilakukan.');
+    }
+
+    $data = [];
+    if ($request->filled('username')) {
+        $data['username'] = $request->username;
+    }
+    if ($request->filled('email')) {
+        $data['email'] = $request->email;
+    }
+    if ($request->filled('nama')) {
+        $data['nama'] = $request->nama;
+    }
+
+    $user->update($data);
+
+    return redirect()->route('settings.index')
+        ->with('success', 'Profil berhasil diperbarui.');
+}
     /**
      * Update profil via API
      */
@@ -105,13 +104,12 @@ class SettingsController extends Controller
     {
         $user = Auth::user();
 
-        // Validasi input
         $validator = Validator::make($request->all(), [
             'username' => 'nullable|string|unique:users,username,'.$user->id_users.',id_users',
             'email' => 'nullable|email|unique:users,email,'.$user->id_users.',id_users',
             'nama' => 'nullable|string|max:255',
         ]);
-        
+
         if ($validator->fails()) {
             return response()->json([
                 'message' => 'Validasi gagal',
@@ -119,14 +117,12 @@ class SettingsController extends Controller
             ], 400);
         }
 
-        // Pastikan minimal ada satu field yang diisi
         if (!$request->username && !$request->email && !$request->nama) {
             return response()->json([
                 'message' => 'Setidaknya satu kolom harus diisi untuk diperbarui.'
             ], 400);
         }
 
-        // Update data yang diisi
         $data = [];
         if ($request->filled('username')) {
             $data['username'] = $request->username;
@@ -140,7 +136,6 @@ class SettingsController extends Controller
 
         $user->update($data);
 
-        // Ambil data profil terbaru
         $updatedUser = User::find($user->id_users);
         $profilePictureUrl = $updatedUser->profile_picture ? asset('storage/' . $updatedUser->profile_picture) : null;
 
@@ -158,13 +153,12 @@ class SettingsController extends Controller
     }
 
     /**
-     * Upload foto profil
+     * Upload foto profil (untuk web)
      */
-    public function uploadProfilePicture(Request $request)
+    public function uploadPhoto(Request $request)
     {
         $user = Auth::user();
 
-        // Validasi file
         $validator = Validator::make($request->all(), [
             'profile_picture' => 'required|image|mimes:jpeg,jpg,png|max:5120' // max 5MB
         ]);
@@ -176,15 +170,12 @@ class SettingsController extends Controller
         }
 
         try {
-            // Hapus foto lama jika ada
             if ($user->profile_picture) {
                 Storage::disk('public')->delete($user->profile_picture);
             }
 
-            // Upload foto baru
             $path = $request->file('profile_picture')->store('profile_pictures', 'public');
-            
-            // Update path di database
+
             $user->update([
                 'profile_picture' => $path
             ]);
@@ -205,33 +196,28 @@ class SettingsController extends Controller
     {
         $user = Auth::user();
 
-        // Validasi file
         $validator = Validator::make($request->all(), [
             'profile_picture' => 'required|image|mimes:jpeg,jpg,png|max:5120' // max 5MB
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'message' => 'File tidak valid', 
+                'message' => 'File tidak valid',
                 'errors' => $validator->errors()
             ], 400);
         }
 
         try {
-            // Hapus foto lama jika ada
             if ($user->profile_picture) {
                 Storage::disk('public')->delete($user->profile_picture);
             }
 
-            // Upload foto baru
             $path = $request->file('profile_picture')->store('profile_pictures', 'public');
-            
-            // Update path di database
+
             $user->update([
                 'profile_picture' => $path
             ]);
 
-            // URL lengkap untuk foto profil
             $fullUrl = asset('storage/' . $path);
 
             return response()->json([
@@ -254,10 +240,9 @@ class SettingsController extends Controller
     {
         $user = Auth::user();
 
-        // Validasi input
         $validator = Validator::make($request->all(), [
-            'old_password' => 'required|string',
-            'new_password' => 'required|string|min:6|confirmed',
+            'oldPassword' => 'required|string',
+            'newPassword' => 'required|string|min:6',
         ]);
 
         if ($validator->fails()) {
@@ -266,15 +251,13 @@ class SettingsController extends Controller
                 ->withInput();
         }
 
-        // Verifikasi password lama
-        if (!Hash::check($request->old_password, $user->password)) {
+        if (!Hash::check($request->oldPassword, $user->password)) {
             return redirect()->back()
                 ->with('error', 'Password lama salah.');
         }
 
-        // Update password baru
         $user->update([
-            'password' => Hash::make($request->new_password)
+            'password' => Hash::make($request->newPassword)
         ]);
 
         return redirect()->route('settings.index')
@@ -288,7 +271,6 @@ class SettingsController extends Controller
     {
         $user = Auth::user();
 
-        // Validasi input
         $validator = Validator::make($request->all(), [
             'old_password' => 'required|string',
             'new_password' => 'required|string|min:6',
@@ -301,14 +283,12 @@ class SettingsController extends Controller
             ], 400);
         }
 
-        // Verifikasi password lama
         if (!Hash::check($request->old_password, $user->password)) {
             return response()->json([
                 'message' => 'Password lama salah.'
             ], 400);
         }
 
-        // Update password baru
         $user->update([
             'password' => Hash::make($request->new_password)
         ]);
@@ -325,12 +305,10 @@ class SettingsController extends Controller
     {
         $user = Auth::user();
 
-        // Hapus file foto jika ada
         if ($user->profile_picture) {
             Storage::disk('public')->delete($user->profile_picture);
         }
 
-        // Reset path foto di database
         $user->update([
             'profile_picture' => null
         ]);
@@ -346,12 +324,10 @@ class SettingsController extends Controller
     {
         $user = Auth::user();
 
-        // Hapus file foto jika ada
         if ($user->profile_picture) {
             Storage::disk('public')->delete($user->profile_picture);
         }
 
-        // Reset path foto di database
         $user->update([
             'profile_picture' => null
         ]);
@@ -361,4 +337,143 @@ class SettingsController extends Controller
             'profile_picture' => null
         ]);
     }
+
+    /**
+     * Upload template dokumen
+     */
+    public function uploadTemplate(Request $request)
+{
+    $user = Auth::user();
+
+    $validator = Validator::make($request->all(), [
+        'file' => 'required|mimes:doc,docx|max:51200', // max 50MB
+    ]);
+
+    if ($validator->fails()) {
+        return redirect()->back()
+            ->withErrors($validator)
+            ->withInput();
+    }
+
+    try {
+        $file = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+        $uuid = Str::uuid()->toString();
+        $fileName = $uuid . '.' . $file->getClientOriginalExtension();
+        $filePath = 'templates/' . $fileName;
+
+        // Pastikan direktori templates ada
+        $directory = storage_path('app/public/templates');
+        if (!file_exists($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        $file->storeAs('templates', $fileName, 'public');
+
+        Template::create([
+            'id_dokumen' => $uuid,
+            'id_users' => $user->id_users,
+            'file_path' => $filePath,
+            'active' => 1,
+            'created_by' => $user->id_users
+        ]);
+
+        return redirect()->route('settings.index')
+            ->with('success', 'Template berhasil diunggah.');
+
+    } catch (\Exception $e) {
+        return redirect()->back()
+            ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+    }
+}
+    /**
+     * Preview template dokumen
+     */
+     public function previewTemplate($id)
+     {
+         $user = Auth::user();
+         $template = Template::where('id_dokumen', $id)
+                             ->where('active', 1)
+                             ->firstOrFail();
+     
+         // Cek apakah template milik user ini
+         if ($template->id_users != $user->id_users) {
+             abort(403, 'Tidak diizinkan mengakses template ini.');
+         }
+     
+         if (!Storage::disk('public')->exists($template->file_path)) {
+             abort(404, 'File template tidak ditemukan.');
+         }
+     
+         $filePath = storage_path('app/public/' . $template->file_path);
+         $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+     
+         // Jika file adalah .docx atau .doc, konversi ke PDF
+         if ($extension == 'docx' || $extension == 'doc') {
+             // Menggunakan LibreOffice untuk konversi ke PDF
+             $pdfDirectory = storage_path('app/public/templates');
+             if (!file_exists($pdfDirectory)) {
+                 mkdir($pdfDirectory, 0777, true);
+             }
+     
+             $pdfFileName = 'template_' . $id . '.pdf';
+             $pdfPath = $pdfDirectory . '/' . $pdfFileName;
+     
+             // Perintah untuk mengonversi file ke PDF menggunakan LibreOffice
+             $command = "libreoffice --headless --convert-to pdf --outdir $pdfDirectory $filePath";
+             exec($command);
+     
+             // Cek apakah file PDF berhasil dibuat
+             if (!file_exists($pdfPath)) {
+                 return response()->json([
+                     'success' => false,
+                     'message' => 'Gagal mengonversi file ke PDF.'
+                 ], 500);
+             }
+     
+             // Kembalikan URL file PDF
+             return response()->json([
+                 'success' => true,
+                 'fileUrl' => asset('storage/templates/' . $pdfFileName)
+             ]);
+         }
+     
+         // Jika file adalah PDF, kembalikan URL file langsung
+         if ($extension == 'pdf') {
+             return response()->json([
+                 'success' => true,
+                 'fileUrl' => asset('storage/' . $template->file_path)
+             ]);
+         }
+     
+         // Jika bukan .docx, .doc, atau PDF, kembalikan pesan error
+         return response()->json([
+             'success' => false,
+             'message' => 'Hanya file .docx, .doc, atau PDF yang dapat dipreview.'
+         ], 400);
+     }
+    /**
+     * Hapus template dokumen
+     */
+    public function deleteTemplate($id)
+{
+    $user = Auth::user();
+    $template = Template::findOrFail($id);
+
+    // Cek apakah template milik user ini
+    if ($template->id_users != $user->id_users) {
+        abort(403, 'Tidak diizinkan menghapus template ini.');
+    }
+
+    // Hapus file fisik jika ada
+    if (Storage::disk('public')->exists($template->file_path)) {
+        Storage::disk('public')->delete($template->file_path);
+    }
+
+    // Soft delete dengan mengubah status active menjadi 0
+    $template->update(['active' => 0]);
+
+    return redirect()->route('settings.index')
+        ->with('success', 'Template berhasil dihapus.');
+}
 }
