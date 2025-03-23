@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
-use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -26,6 +25,15 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
+        // Cek apakah username ada di database
+        $user = User::where('username', $request->username)->first();
+
+        if (!$user) {
+            return back()->withErrors([
+                'username' => 'Username tidak ditemukan.',
+            ]);
+        }
+
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
 
@@ -38,7 +46,7 @@ class AuthController extends Controller
         }
 
         return back()->withErrors([
-            'username' => 'Kredensial yang diberikan tidak cocok dengan data kami.',
+            'password' => 'Password yang Anda masukkan salah.',
         ]);
     }
 
@@ -59,66 +67,66 @@ class AuthController extends Controller
     }
 
     // Proses untuk mengirim OTP
-public function sendOTP(Request $request)
-{
-    $request->validate([
-        'username' => 'required',
-    ]);
-
-    $user = User::where('username', $request->username)->first();
-
-    if (!$user) {
-        return back()->withErrors([
-            'username' => 'Username tidak ditemukan dalam sistem kami.',
+    public function sendOTP(Request $request)
+    {
+        $request->validate([
+            'username' => 'required',
         ]);
+
+        $user = User::where('username', $request->username)->first();
+
+        if (!$user) {
+            return back()->withErrors([
+                'username' => 'Username tidak ditemukan dalam sistem kami.',
+            ]);
+        }
+
+        // Check if user has email
+        if (!$user->email) {
+            return back()->withErrors([
+                'username' => 'Akun ini tidak memiliki email terdaftar. Silakan hubungi administrator.',
+            ]);
+        }
+
+        // Generate OTP 6 digit
+        $otp = sprintf("%06d", mt_rand(1, 999999));
+        $user->otp = $otp;
+        $user->otp_expires_at = Carbon::now()->addMinutes(15);
+        $user->save();
+
+        // Kirim email dengan OTP
+        $this->sendOTPEmail($user->email, $otp);
+        
+        // Masking email untuk ditampilkan ke pengguna
+        $maskedEmail = $this->maskEmail($user->email);
+        
+        // Simpan data di session dan redirect ke halaman OTP
+        session([
+            'status' => 'otp_sent',
+            'email' => $user->email,
+            'username' => $user->username,
+            'maskedEmail' => $maskedEmail
+        ]);
+        
+        return redirect()->route('password.otp');
     }
 
-    // Check if user has email
-    if (!$user->email) {
-        return back()->withErrors([
-            'username' => 'Akun ini tidak memiliki email terdaftar. Silakan hubungi administrator.',
-        ]);
-    }
-
-    // Generate OTP 6 digit
-    $otp = sprintf("%06d", mt_rand(1, 999999));
-    $user->otp = $otp;
-    $user->otp_expires_at = Carbon::now()->addMinutes(15);
-    $user->save();
-
-    // Kirim email dengan OTP
-    $this->sendOTPEmail($user->email, $otp);
-    
-    // Masking email untuk ditampilkan ke pengguna
-    $maskedEmail = $this->maskEmail($user->email);
-    
-    // Simpan data di session dan redirect ke halaman OTP
-    session([
-        'status' => 'otp_sent',
-        'email' => $user->email,
-        'username' => $user->username,
-        'maskedEmail' => $maskedEmail
-    ]);
-    
-    return redirect()->route('password.otp');
-}
-    
     // Menampilkan form input OTP
     public function showOTPForm()
-{
-    // Debug session data
-    \Log::info('Session data in showOTPForm:', [
-        'email' => session('email'),
-        'status' => session('status')
-    ]);
-    
-    if (!session('email') || !session('status')) {
-        return redirect()->route('password.request')
-            ->withErrors(['email' => 'Sesi telah berakhir. Silakan coba lagi.']);
+    {
+        // Debug session data
+        \Log::info('Session data in showOTPForm:', [
+            'email' => session('email'),
+            'status' => session('status')
+        ]);
+        
+        if (!session('email') || !session('status')) {
+            return redirect()->route('password.request')
+                ->withErrors(['email' => 'Sesi telah berakhir. Silakan coba lagi.']);
+        }
+        
+        return view('auth.verify-otp');
     }
-    
-    return view('auth.verify-otp');
-}
 
     // Proses verifikasi OTP
     public function verifyOTP(Request $request)

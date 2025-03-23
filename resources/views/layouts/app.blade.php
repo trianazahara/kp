@@ -14,6 +14,9 @@
     <!-- Tambahkan CDN Axios jika dibutuhkan -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
     <!-- Styles -->
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
     <link href="{{ asset('css/custom.css') }}" rel="stylesheet">
@@ -47,7 +50,7 @@
             </nav>
             
             <!-- Content area with added top margin -->
-            <div class="container mx-auto px-4 flex-grow mt-6">
+            <div class="container mx-auto px-4 flex-grow mt-12">
                 @if(session('success'))
                 <div class="p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg" role="alert">
                     {{ session('success') }}
@@ -65,50 +68,8 @@
         </div>
     </div>
     
-    <!-- JavaScript functions -->
-    <script>
-        // Sidebar toggle function
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const overlay = document.getElementById('sidebar-overlay');
-            
-            if (sidebar && overlay) {
-                sidebar.classList.toggle('-translate-x-full');
-                overlay.classList.toggle('hidden');
-            }
-        }
-        
-        // Initialize active submenus
-        document.addEventListener('DOMContentLoaded', function() {
-            const currentPath = window.location.pathname;
-            
-            if (currentPath.includes('/dashboard/interns')) {
-                const submenu = document.getElementById('data-magang-submenu');
-                const arrow = document.getElementById('data-magang-arrow');
-                
-                if (submenu && arrow) {
-                    submenu.classList.remove('hidden');
-                    arrow.classList.add('rotate-180');
-                }
-            }
-            
-            if (currentPath.includes('/dashboard/history')) {
-                const submenu = document.getElementById('history-submenu');
-                const arrow = document.getElementById('history-arrow');
-                
-                if (submenu && arrow) {
-                    submenu.classList.remove('hidden');
-                    arrow.classList.add('rotate-180');
-                }
-            }
-            
-            // Close sidebar when clicking overlay on mobile
-            const overlay = document.getElementById('sidebar-overlay');
-            if (overlay) {
-                overlay.addEventListener('click', toggleSidebar);
-            }
-        });
-    </script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     @yield('scripts')
 </body>

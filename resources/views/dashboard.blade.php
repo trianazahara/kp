@@ -23,118 +23,129 @@
     ];
 @endphp
 
-<div class="dashboard-container space-y-6">
-    <!-- Top Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <!-- Active Interns -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative overflow-hidden">
-            <h3 class="text-primary font-medium text-base mb-2">Total Peserta Magang Aktif</h3>
-            <div class="text-primary text-4xl font-bold" id="active-interns-count">{{ $stats['activeInterns']['total'] ?? 0 }}</div>
-            <div class="absolute top-1/2 -translate-y-1/2 right-5">
-                <div class="h-14 w-14 rounded-full bg-green-50 flex items-center justify-center text-primary">
-                    <i class="fas fa-users text-2xl"></i>
+<div class="p-6 animate-fadeIn">
+    <!-- Stat Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+        <!-- Anak Magang Aktif Card -->
+        <div class="group perspective">
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transform transition-all duration-500 hover:scale-110 hover:rotate-2 animate-slideRight hover:shadow-xl hover:shadow-emerald-200/50 group-hover:z-10">
+                <div class="flex justify-between items-start">
+                    <div class="transform transition-all duration-500 group-hover:translate-x-2">
+                        <p class="text-emerald-500 text-lg font-medium mb-2">Total Peserta Magang Aktif</p>
+                        <h3 class="text-4xl font-bold text-emerald-500">{{ $stats['activeInterns']['total'] ?? 0 }}</h3>
+                    </div>
+                    <div class="bg-emerald-100 p-3 rounded-lg transform transition-all duration-500 group-hover:rotate-12 group-hover:scale-110">
+                        <i class="fas fa-users text-emerald-500"></i>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Completed Interns -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative overflow-hidden">
-            <h3 class="text-primary font-medium text-base mb-2">Total Peserta Magang Selesai</h3>
-            <div class="text-primary text-4xl font-bold" id="completed-interns-count">{{ $stats['completedInterns'] ?? 0 }}</div>
-            <div class="absolute top-1/2 -translate-y-1/2 right-5">
-                <div class="h-14 w-14 rounded-full bg-green-50 flex items-center justify-center text-primary">
-                    <i class="fas fa-clock text-2xl"></i>
+
+        <!-- Total Selesai Card -->
+        <div class="group perspective">
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transform transition-all duration-500 hover:scale-110 hover:rotate-2 animate-slideUp delay-100 hover:shadow-xl hover:shadow-rose-200/50 group-hover:z-10">
+                <div class="flex justify-between items-start">
+                    <div class="transform transition-all duration-500 group-hover:translate-x-2">
+                        <p class="text-emerald-500 text-lg font-medium mb-2">Total Peserta Magang Selesai</p>
+                        <h3 class="text-4xl font-bold text-emerald-500">{{ $stats['completedInterns'] ?? 0 }}</h3>
+                    </div>
+                    <div class="bg-rose-100 p-3 rounded-lg transform transition-all duration-500 group-hover:rotate-12 group-hover:scale-110">
+                        <i class="fas fa-check-circle text-rose-500"></i>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Total Interns -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative overflow-hidden">
-            <h3 class="text-primary font-medium text-base mb-2">Total Peserta magang</h3>
-            <div class="text-primary text-4xl font-bold" id="total-interns-count">{{ $stats['totalInterns'] ?? 0 }}</div>
-            <div class="absolute top-1/2 -translate-y-1/2 right-5">
-                <div class="h-14 w-14 rounded-full bg-green-50 flex items-center justify-center text-primary">
-                    <i class="fas fa-cube text-2xl"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Middle Section - Active Interns by Department and Type -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <!-- Active Interns by Type -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative overflow-hidden">
-            <h3 class="text-primary font-medium text-base mb-4">Peserta Magang Aktif Per Bidang</h3>
-            <div class="space-y-3">
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-700">Mahasiswa</span>
-                    <span class="font-semibold">{{ $stats['activeInterns']['students']['mahasiswa'] ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-700">Siswa</span>
-                    <span class="font-semibold">{{ $stats['activeInterns']['students']['siswa'] ?? 0 }}</span>
-                </div>
-            </div>
-            <div class="absolute top-1/2 -translate-y-1/2 right-5">
-                <div class="h-14 w-14 rounded-full bg-green-50 flex items-center justify-center text-primary">
-                    <i class="fas fa-user-graduate text-2xl"></i>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Active Interns by Department -->
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative overflow-hidden">
-            <h3 class="text-primary font-medium text-base mb-4">Peserta Magang Aktif Per Bidang</h3>
-            <div class="space-y-3">
-                @foreach($stats['activeInterns']['byDepartment'] ?? [] as $department => $count)
-                <div class="flex justify-between items-center">
-                    <span class="text-gray-700">{{ ucfirst($department) }}</span>
-                    <span class="font-semibold">{{ $count }}</span>
-                </div>
-                @endforeach
-            </div>
-            <div class="absolute top-1/2 -translate-y-1/2 right-5">
-                <div class="h-14 w-14 rounded-full bg-green-50 flex items-center justify-center text-primary">
-                    <i class="fas fa-building text-2xl"></i>
+
+        <!-- Total Keseluruhan Card -->
+        <div class="group perspective">
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transform transition-all duration-500 hover:scale-110 hover:rotate-2 animate-slideLeft delay-200 hover:shadow-xl hover:shadow-amber-200/50 group-hover:z-10">
+                <div class="flex justify-between items-start">
+                    <div class="transform transition-all duration-500 group-hover:translate-x-2">
+                        <p class="text-emerald-500 text-lg font-medium mb-2">Total Peserta Magang</p>
+                        <h3 class="text-4xl font-bold text-emerald-500">{{ $stats['totalInterns'] ?? 0 }}</h3>
+                    </div>
+                    <div class="bg-amber-100 p-3 rounded-lg transform transition-all duration-500 group-hover:rotate-12 group-hover:scale-110">
+                        <i class="fas fa-cube text-amber-500"></i>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Bottom Section - Interns Completing Soon -->
-    <div>
-        <h2 class="text-lg font-semibold text-gray-800 mb-3">Peserta Magang yang akan selesai dalam 7 hari</h2>
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+
+    <!-- Detail Cards with Enhanced Animations -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+        <!-- Card Berdasarkan Jenis Peserta -->
+        <div class="group perspective">
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transform transition-all duration-500 hover:scale-105 hover:rotate-1 animate-slideRight delay-300 hover:shadow-xl hover:shadow-blue-200/50">
+                <div class="flex justify-between items-start mb-4">
+                    <p class="text-emerald-500 text-xl font-medium transform transition-all duration-500 group-hover:translate-x-2">Peserta Magang Aktif Berdasarkan Jenis</p>
+                    <div class="bg-blue-100 p-3 rounded-lg transform transition-all duration-500 group-hover:rotate-12 group-hover:scale-110">
+                        <i class="fas fa-user-graduate text-blue-500"></i>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-2 rounded-lg transform transition-all duration-300 hover:bg-blue-50 hover:translate-x-2">
+                        <span class="text-gray-600">Mahasiswa</span>
+                        <span class="text-lg font-semibold">{{ $stats['activeInterns']['students']['mahasiswa'] ?? 0 }}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 rounded-lg transform transition-all duration-300 hover:bg-blue-50 hover:translate-x-2">
+                        <span class="text-gray-600">Siswa</span>
+                        <span class="text-lg font-semibold">{{ $stats['activeInterns']['students']['siswa'] ?? 0 }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card Berdasarkan Bidang -->
+        <div class="group perspective">
+            <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transform transition-all duration-500 hover:scale-105 hover:rotate-1 animate-slideLeft delay-300 hover:shadow-xl hover:shadow-purple-200/50">
+                <div class="flex justify-between items-start mb-4">
+                    <p class="text-emerald-500 text-xl font-medium transform transition-all duration-500 group-hover:translate-x-2">Peserta Magang Aktif Per Bidang</p>
+                    <div class="bg-purple-100 p-3 rounded-lg transform transition-all duration-500 group-hover:rotate-12 group-hover:scale-110">
+                        <i class="fas fa-briefcase text-purple-500"></i>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    @foreach($stats['activeInterns']['byDepartment'] ?? [] as $department => $count)
+                    <div class="flex justify-between items-center p-2 rounded-lg transform transition-all duration-300 hover:bg-purple-50 hover:translate-x-2">
+                        <span class="text-gray-600 capitalize">{{ $department }}</span>
+                        <span class="text-lg font-semibold">{{ $count }}</span>
+                    </div>
+                    @endforeach
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabel Section -->
+    <div class="mt-8 animate-slideUp delay-400">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-gray-800">Peserta Magang yang Akan Selesai dalam 7 Hari</h2>
+            <div class="bg-yellow-100 px-3 py-1 rounded-lg transform transition-all duration-300 hover:scale-105">
+                <span class="text-yellow-700 font-medium">{{ $stats['completingSoon']['count'] ?? 0 }} Orang</span>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 transform transition-all duration-300 hover:shadow-lg">
             @if(isset($stats['completingSoon']['interns']) && count($stats['completingSoon']['interns']) > 0)
             <div class="overflow-x-auto">
-                <table class="w-full">
-                    <thead>
-                        <tr class="bg-gray-50">
-                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Nama</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Institusi</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Bidang</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Tanggal Selesai</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700">Aksi</th>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidang</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal Selesai</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200">
+                    <tbody class="bg-white divide-y divide-gray-200">
                         @foreach($stats['completingSoon']['interns'] as $intern)
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $intern->nama ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $intern->nama_institusi ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700">{{ $intern->nama_bidang ?? '-' }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-700">
+                        <tr class="hover:bg-gray-50 transition-colors duration-200">
+                            <td class="px-6 py-4 whitespace-nowrap">{{ $intern->nama ?? '-' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">{{ $intern->nama_bidang ?? '-' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
                                 @if(isset($intern->tanggal_keluar))
                                     {{ \Carbon\Carbon::parse($intern->tanggal_keluar)->format('d M Y') }}
                                 @else
                                     -
-                                @endif
-                            </td>
-                            <td class="px-4 py-3 text-sm">
-                                @if(isset($intern->id_magang))
-                                <a href="{{ route('interns.show', $intern->id_magang) }}" class="text-primary hover:underline">
-                                    <i class="fas fa-eye"></i>
-                                </a>
                                 @endif
                             </td>
                         </tr>
@@ -143,8 +154,8 @@
                 </table>
             </div>
             @else
-            <div class="p-8 text-center text-gray-500">
-                <p>Tidak ada peserta magang yang akan selesai dalam 7 hari kedepan</p>
+            <div class="text-center py-4 text-gray-500">
+                <p>Tidak ada peserta magang yang akan selesai dalam 7 hari ke depan</p>
             </div>
             @endif
         </div>

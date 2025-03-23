@@ -1,101 +1,108 @@
-<header class="bg-white shadow-sm px-4 py-3 flex justify-between items-center h-16">
-    <!-- Left side - Mobile Menu Toggle -->
-    <div class="md:hidden">
-        <button type="button" onclick="toggleSidebar()" class="text-gray-500 hover:text-primary focus:outline-none">
-            <i class="fas fa-bars text-lg"></i>
-        </button>
-    </div>
-    
-    <!-- Sound toggle button on large screens -->
-    <div class="hidden md:block">
-        <button type="button" class="text-gray-500 hover:text-primary focus:outline-none">
-            <i class="fas fa-volume-up text-lg"></i>
-        </button>
-    </div>
-    
-    <!-- Right side - Notification & Profile -->
-    <div class="flex items-center space-x-4">
-        <!-- Notification Dropdown -->
-        <div class="relative">
-            <button type="button" class="text-gray-500 hover:text-primary focus:outline-none relative">
-                <i class="fas fa-bell text-lg"></i>
-                @php
-                    // Definisikan variabel notifikasi dengan nilai default jika belum ada
-                    $notificationCount = $notificationCount ?? 0;
-                    $notifications = $notifications ?? [];
-                @endphp
-                
-                @if($notificationCount > 0)
-                <span class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">
-                    {{ $notificationCount > 9 ? '9+' : $notificationCount }}
-                </span>
-                @endif
-            </button>
-            
-            <!-- Notification Dropdown Menu -->
-            <div class="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg overflow-hidden z-50 hidden" id="notification-dropdown">
-                <div class="py-2 px-4 bg-gray-50 border-b flex justify-between items-center">
-                    <span class="font-medium text-gray-700">Notifikasi</span>
+<?php
+// Inisialisasi variabel dengan nilai default jika tidak ada
+$notificationCount = $notificationCount ?? 0;
+$notifications = $notifications ?? [];
+?>
+
+<header class="fixed top-0 right-0 left-64 bg-white border-b z-10">
+    <div class="flex justify-end items-center p-1 mr-4">
+        <div class="flex items-center gap-3">
+            <!-- Notification Dropdown -->
+            <div class="relative" id="notification-dropdown">
+                <button
+                    type="button"
+                    class="relative p-2 rounded-full hover:bg-gray-100 focus:outline-none"
+                    onclick="toggleNotificationDropdown()"
+                >
+                    <i class="fas fa-bell text-lg"></i>
                     @if($notificationCount > 0)
-                    <a href="{{ route('notifications.markAllAsRead') }}" class="text-xs text-primary hover:underline">Tandai semua dibaca</a>
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {{ $notificationCount > 9 ? '9+' : $notificationCount }}
+                    </span>
                     @endif
-                </div>
-                
-                <div class="max-h-64 overflow-y-auto">
-                    @forelse($notifications as $notification)
-                    <a href="{{ route('notifications.show', $notification->id_notifikasi) }}" class="block px-4 py-3 hover:bg-gray-50 border-b {{ $notification->dibaca ? '' : 'bg-green-50' }}">
-                        <div class="flex">
-                            <div class="flex-shrink-0 h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-primary">
-                                <i class="fas fa-user-edit"></i>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-gray-700">{{ $notification->pesan }}</p>
-                                <p class="text-xs text-gray-500 mt-1">{{ \Carbon\Carbon::parse($notification->created_at)->diffForHumans() }}</p>
-                            </div>
-                        </div>
-                    </a>
-                    @empty
-                    <div class="px-4 py-6 text-center text-gray-500">
-                        <p>Tidak ada notifikasi baru</p>
+                </button>
+
+                <!-- Notification Dropdown Menu -->
+                <div class="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 hidden" id="notification-menu">
+                    <div class="px-4 py-2 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold">Notifikasi</h3>
                     </div>
-                    @endforelse
-                </div>
-                
-                @if($notificationCount > 5)
-                <div class="py-2 px-4 bg-gray-50 border-t text-center">
-                    <a href="{{ route('notifications.index') }}" class="text-xs text-primary hover:underline">Lihat semua notifikasi</a>
-                </div>
-                @endif
-            </div>
-        </div>
-        
-        <!-- Profile Dropdown -->
-        <div class="relative" id="profile-menu">
-            <button type="button" class="flex items-center space-x-3 focus:outline-none">
-                <div class="md:block hidden text-right">
-                    <div class="text-sm font-medium text-gray-700">{{ auth()->user()->nama }}</div>
-                    <div class="text-xs text-gray-500">{{ ucfirst(auth()->user()->role) }}</div>
-                </div>
-                <div class="h-9 w-9 rounded-full overflow-hidden bg-primary text-white flex items-center justify-center">
-                    @if(auth()->user()->profile_picture)
-                        <img src="{{ asset('storage/' . auth()->user()->profile_picture) }}" alt="Profile" class="h-full w-full object-cover">
-                    @else
-                        <span class="text-sm font-medium">{{ substr(auth()->user()->nama, 0, 1) }}</span>
+                    <div class="max-h-96 overflow-y-auto">
+                        @if(count($notifications) === 0)
+                        <div class="p-4 text-center text-gray-500">
+                            Tidak ada notifikasi
+                        </div>
+                        @else
+                        @foreach($notifications as $notification)
+                        <a
+                            href="{{ route('notifications.show', $notification->id_notifikasi) }}"
+                            class="block p-4 border-b border-gray-100 hover:bg-gray-50 {{ $notification->dibaca ? '' : 'bg-blue-50' }}"
+                        >
+                            <div class="font-semibold">{{ $notification->judul }}</div>
+                            <div class="text-sm text-gray-600">{{ $notification->pesan }}</div>
+                            <div class="text-xs text-gray-400 mt-1">
+                                {{ \Carbon\Carbon::parse($notification->created_at)->toLocaleString('id-ID') }}
+                            </div>
+                        </a>
+                        @endforeach
+                        @endif
+                    </div>
+                    @if(count($notifications) > 0)
+                    <div class="p-2 text-center border-t border-gray-200">
+                        <a href="{{ route('notifications.index') }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                            Lihat Semua Notifikasi
+                        </a>
+                    </div>
                     @endif
                 </div>
-            </button>
-            
-            <!-- Profile Dropdown Menu -->
-            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg overflow-hidden z-50 hidden" id="profile-dropdown">
-                <a href="{{ route('settings.index') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    <i class="fas fa-user mr-2 text-gray-500"></i> Profil Saya
-                </a>
-                <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    <i class="fas fa-sign-out-alt mr-2 text-gray-500"></i> Keluar
-                </a>
-                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
-                    @csrf
-                </form>
+            </div>
+
+            <!-- Profile Dropdown -->
+            <div class="relative" id="profile-menu">
+                <button
+                    type="button"
+                    class="flex items-center gap-3 cursor-pointer focus:outline-none"
+                    onclick="toggleProfileDropdown()"
+                >
+                    <div class="text-right">
+                        <p class="text-gray-700">{{ auth()->user()->nama }}</p>
+                        <p class="text-gray-500 text-sm">{{ ucfirst(auth()->user()->role) }}</p>
+                    </div>
+                    <div class="flex flex-col items-center gap-1">
+                        @if(auth()->user()->profile_picture)
+                        <img
+                            src="{{ asset('storage/' . auth()->user()->profile_picture) }}"
+                            alt="Profile"
+                            class="w-10 h-10 rounded-full object-cover"
+                        />
+                        @else
+                        <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center">
+                            <span class="text-sm font-medium">{{ substr(auth()->user()->nama, 0, 1) }}</span>
+                        </div>
+                        @endif
+                        <i class="fas fa-chevron-down text-gray-400 text-xs transform transition-transform duration-200" id="profile-arrow"></i>
+                    </div>
+                </button>
+
+                <!-- Profile Dropdown Menu -->
+                <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 hidden" id="profile-dropdown">
+                    <a
+                        href="{{ route('settings.index') }}"
+                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                        <i class="fas fa-user mr-2 text-gray-500"></i> Profil Saya
+                    </a>
+                    <a
+                        href="#"
+                        onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
+                        class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                    >
+                        <i class="fas fa-sign-out-alt mr-2 text-gray-500"></i> Keluar
+                    </a>
+                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="hidden">
+                        @csrf
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -103,35 +110,37 @@
 
 <script>
     // Toggle notification dropdown
-    document.addEventListener('DOMContentLoaded', function() {
-        const notificationButton = document.querySelector('#notification-dropdown').previousElementSibling;
-        const notificationDropdown = document.querySelector('#notification-dropdown');
-        
-        notificationButton.addEventListener('click', function() {
-            notificationDropdown.classList.toggle('hidden');
-            // Hide profile dropdown when showing notification dropdown
-            document.querySelector('#profile-dropdown').classList.add('hidden');
-        });
-        
-        // Toggle profile dropdown
-        const profileButton = document.querySelector('#profile-menu > button');
-        const profileDropdown = document.querySelector('#profile-dropdown');
-        
-        profileButton.addEventListener('click', function() {
-            profileDropdown.classList.toggle('hidden');
-            // Hide notification dropdown when showing profile dropdown
-            notificationDropdown.classList.add('hidden');
-        });
-        
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', function(event) {
-            if (!notificationButton.contains(event.target) && !notificationDropdown.contains(event.target)) {
-                notificationDropdown.classList.add('hidden');
-            }
-            
-            if (!profileButton.contains(event.target) && !profileDropdown.contains(event.target)) {
-                profileDropdown.classList.add('hidden');
-            }
-        });
+    function toggleNotificationDropdown() {
+        const notificationMenu = document.getElementById('notification-menu');
+        const profileMenu = document.getElementById('profile-dropdown');
+        notificationMenu.classList.toggle('hidden');
+        profileMenu.classList.add('hidden');
+    }
+
+    // Toggle profile dropdown
+    function toggleProfileDropdown() {
+        const profileMenu = document.getElementById('profile-dropdown');
+        const notificationMenu = document.getElementById('notification-menu');
+        const profileArrow = document.getElementById('profile-arrow');
+        profileMenu.classList.toggle('hidden');
+        notificationMenu.classList.add('hidden');
+        profileArrow.classList.toggle('rotate-180');
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(event) {
+        const notificationDropdown = document.getElementById('notification-dropdown');
+        const profileDropdown = document.getElementById('profile-menu');
+        const notificationMenu = document.getElementById('notification-menu');
+        const profileMenu = document.getElementById('profile-dropdown');
+
+        if (!notificationDropdown.contains(event.target)) {
+            notificationMenu.classList.add('hidden');
+        }
+
+        if (!profileDropdown.contains(event.target)) {
+            profileMenu.classList.add('hidden');
+            document.getElementById('profile-arrow').classList.remove('rotate-180');
+        }
     });
 </script>

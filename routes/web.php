@@ -38,14 +38,16 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:superadmin'])-
     Route::delete('/{id}', [App\Http\Controllers\AdminController::class, 'destroy'])->name('destroy');
 });
 
-// Routes untuk halaman pengaturan (web)
-Route::prefix('settings')->name('settings.')->middleware('auth')->group(function () {
-    Route::get('/', [App\Http\Controllers\SettingsController::class, 'index'])->name('index');
-    Route::put('/profile', [App\Http\Controllers\SettingsController::class, 'updateProfile'])->name('profile.update');
-    Route::post('/profile/picture', [App\Http\Controllers\SettingsController::class, 'uploadProfilePicture'])->name('profile.picture');
-    Route::delete('/profile/picture', [App\Http\Controllers\SettingsController::class, 'deletePhoto'])->name('profile.picture.delete');
-    Route::put('/password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('password.change');
+use App\Http\Controllers\NotificationController;
+
+Route::middleware('auth:api')->group(function () {
+    Route::post('/notifications', [NotificationController::class, 'createNotification']);
+    Route::get('/notifications', [NotificationController::class, 'getNotifications']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount']);
+    Route::put('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead']);
 });
+
 
 // Web Routes
 Route::get('/dashboard/interns', [App\Http\Controllers\InternController::class, 'index'])->name('interns.management');
@@ -70,6 +72,30 @@ Route::prefix('api')->group(function () {
     Route::get('/interns/completing-soon', [App\Http\Controllers\InternController::class, 'getCompletingSoon'])->name('api.interns.getCompletingSoon');
     Route::get('/interns/history', [App\Http\Controllers\InternController::class, 'getHistory'])->name('api.interns.getHistory');
 });
+// Protected routes
+Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', function () {
+        return view('dashboard');
+    })->name('dashboard');
+    
+     // Basic settings routes
+     Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');
+     Route::post('/settings/update-profile', [App\Http\Controllers\SettingsController::class, 'updateProfile'])->name('settings.update-profile');
+     Route::post('/settings/upload-photo', [App\Http\Controllers\SettingsController::class, 'uploadProfilePicture'])->name('settings.upload-photo');
+     Route::delete('/settings/delete-photo', [App\Http\Controllers\SettingsController::class, 'deletePhoto'])->name('settings.delete-photo');
+     Route::post('/settings/change-password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('settings.change-password');
+ 
+    // Template routes
+    Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');
+    Route::post('/settings/update-profile', [App\Http\Controllers\SettingsController::class, 'updateProfile'])->name('settings.update-profile');
+    Route::post('/settings/upload-photo', [App\Http\Controllers\SettingsController::class, 'uploadPhoto'])->name('settings.upload-photo');
+    Route::delete('/settings/delete-photo', [App\Http\Controllers\SettingsController::class, 'deletePhoto'])->name('settings.delete-photo');
+    Route::post('/settings/change-password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('settings.change-password');
+    Route::post('/settings/upload-template', [App\Http\Controllers\SettingsController::class, 'uploadTemplate'])->name('settings.upload-template');
+    Route::get('/settings/preview-template/{id}', [App\Http\Controllers\SettingsController::class, 'previewTemplate'])->name('settings.preview-template');
+    Route::delete('/settings/delete-template/{id}', [App\Http\Controllers\SettingsController::class, 'deleteTemplate'])->name('settings.delete-template');
+});
+
 // Rute yang memerlukan autentikasi
 Route::middleware(['auth'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
