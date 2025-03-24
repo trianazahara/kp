@@ -337,108 +337,115 @@ public function generateReceipt(Request $request)
     
 
     /**
-     * Ambil semua data peserta magang dengan filter dan paginasi
-     */
-    public function getAll(Request $request)
-    {
-        try {
-            $page = $request->input('page', 1);
-            $limit = $request->input('limit', 10);
-            $status = $request->input('status');
-            $bidang = $request->input('bidang');
-            $search = $request->input('search');
-            $excludeStatus = $request->input('excludeStatus');
+ * Ambil semua data peserta magang dengan filter dan paginasi
+ */
+public function getAll(Request $request)
+{
+    try {
+        $page = $request->input('page', 1);
+        $limit = $request->input('limit', 10);
+        $status = $request->input('status', 'aktif,not_yet,almost'); // Tambahkan default value
+        $bidang = $request->input('bidang');
+        $search = $request->input('search');
+        $excludeStatus = $request->input('excludeStatus');
 
-            $offset = ($page - 1) * $limit;
-            
-            // Query dasar dengan pengecekan data lengkap
-            $query = PesertaMagang::leftJoin('bidang as b', 'peserta_magang.id_bidang', '=', 'b.id_bidang')
-                ->select([
-                    'peserta_magang.*',
-                    'b.nama_bidang',
-                    DB::raw('CASE 
-                        WHEN peserta_magang.email IS NULL 
-                        OR peserta_magang.no_hp IS NULL
-                        OR peserta_magang.nama_pembimbing IS NULL
-                        OR peserta_magang.telp_pembimbing IS NULL
-                        OR (
-                            CASE 
-                                WHEN peserta_magang.jenis_peserta = "mahasiswa" THEN 
-                                    EXISTS(
-                                        SELECT 1 FROM data_mahasiswa m 
-                                        WHERE m.id_magang = peserta_magang.id_magang 
-                                        AND (m.fakultas IS NULL OR m.semester IS NULL)
-                                    )
-                                ELSE 
-                                    EXISTS(
-                                        SELECT 1 FROM data_siswa s 
-                                        WHERE s.id_magang = peserta_magang.id_magang 
-                                        AND s.kelas IS NULL
-                                    )
-                            END
-                        )
-                        THEN true 
-                        ELSE false 
-                    END as has_incomplete_data')
-                ]);
-
-            // Filter untuk admin
-            if (auth()->user()->role === 'admin') {
-                $query->where('peserta_magang.mentor_id', auth()->id());
-            }
-
-            // Filter status yang diexclude
-            if ($excludeStatus) {
-                $statusesToExclude = explode(',', $excludeStatus);
-                $query->whereNotIn('peserta_magang.status', $statusesToExclude);
-            }
-
-            // Filter status
-            if ($status) {
-                $query->where('peserta_magang.status', $status);
-            }
-
-            // Filter bidang
-            if ($bidang) {
-                $query->where('peserta_magang.id_bidang', $bidang);
-            }
-
-            // Filter pencarian
-            if ($search) {
-                $query->where(function($q) use ($search) {
-                    $q->where('peserta_magang.nama', 'like', "%{$search}%")
-                      ->orWhere('peserta_magang.nama_institusi', 'like', "%{$search}%");
-                });
-            }
-
-            // Hitung total data
-            $total = $query->count();
-
-            // Tambah paginasi
-            $rows = $query->orderBy('peserta_magang.created_at', 'desc')
-                          ->limit($limit)
-                          ->offset($offset)
-                          ->get();
-
-            return response()->json([
-                'status' => 'success',
-                'data' => $rows,
-                'pagination' => [
-                    'total' => $total,
-                    'totalPages' => ceil($total / $limit),
-                    'page' => (int)$page,
-                    'limit' => (int)$limit
-                ]
+        $offset = ($page - 1) * $limit;
+        
+        // Query dasar dengan pengecekan data lengkap
+        $query = PesertaMagang::leftJoin('bidang as b', 'peserta_magang.id_bidang', '=', 'b.id_bidang')
+            ->select([
+                'peserta_magang.*',
+                'b.nama_bidang',
+                DB::raw('CASE 
+                    WHEN peserta_magang.email IS NULL 
+                    OR peserta_magang.no_hp IS NULL
+                    OR peserta_magang.nama_pembimbing IS NULL
+                    OR peserta_magang.telp_pembimbing IS NULL
+                    OR (
+                        CASE 
+                            WHEN peserta_magang.jenis_peserta = "mahasiswa" THEN 
+                                EXISTS(
+                                    SELECT 1 FROM data_mahasiswa m 
+                                    WHERE m.id_magang = peserta_magang.id_magang 
+                                    AND (m.fakultas IS NULL OR m.semester IS NULL)
+                                )
+                            ELSE 
+                                EXISTS(
+                                    SELECT 1 FROM data_siswa s 
+                                    WHERE s.id_magang = peserta_magang.id_magang 
+                                    AND s.kelas IS NULL
+                                )
+                        END
+                    )
+                    THEN true 
+                    ELSE false 
+                END as has_incomplete_data')
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('Error getting interns: ' . $e->getMessage());
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Terjadi kesalahan server'
-            ], 500);
+        // Filter untuk admin
+        if (auth()->user()->role === 'admin') {
+            $query->where('peserta_magang.mentor_id', auth()->id());
         }
+
+        // Filter status yang diexclude
+        if ($excludeStatus) {
+            $statusesToExclude = explode(',', $excludeStatus);
+            $query->whereNotIn('peserta_magang.status', $statusesToExclude);
+        }
+
+        // Filter status - PERBAIKAN: mendukung multi-value status
+        if ($status) {
+            if (strpos($status, ',') !== false) {
+                // Jika status berisi koma, berarti multi-value
+                $statusArray = explode(',', $status);
+                $query->whereIn('peserta_magang.status', $statusArray);
+            } else {
+                // Jika hanya satu nilai
+                $query->where('peserta_magang.status', $status);
+            }
+        }
+
+        // Filter bidang
+        if ($bidang) {
+            $query->where('peserta_magang.id_bidang', $bidang);
+        }
+
+        // Filter pencarian
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('peserta_magang.nama', 'like', "%{$search}%")
+                  ->orWhere('peserta_magang.nama_institusi', 'like', "%{$search}%");
+            });
+        }
+
+        // Hitung total data
+        $total = $query->count();
+
+        // Tambah paginasi
+        $rows = $query->orderBy('peserta_magang.created_at', 'desc')
+                      ->limit($limit)
+                      ->offset($offset)
+                      ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $rows,
+            'pagination' => [
+                'total' => $total,
+                'totalPages' => ceil($total / $limit),
+                'page' => (int)$page,
+                'limit' => (int)$limit
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error getting interns: ' . $e->getMessage());
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Terjadi kesalahan server: ' . $e->getMessage() // Tambahkan detail error
+        ], 500);
     }
+}
 
     /**
      * Cek ketersediaan slot magang
@@ -1257,20 +1264,51 @@ public function checkPositionsPage(Request $request)
     }
 }
 
+public function downloadReceipt(Request $request)
+{
+    try {
+        $internIds = $request->input('intern_ids', []);
+        
+        if (empty($internIds)) {
+            return redirect()->route('interns.management')
+                ->with('error', 'Pilih minimal satu peserta magang untuk generate tanda terima');
+        }
+        
+        // Sesuaikan model dan relasi sesuai aplikasi Anda
+        $interns = PesertaMagang::whereIn('id_magang', $internIds)
+            ->with(['bidang'])
+            ->get();
+        
+        if ($interns->isEmpty()) {
+            return redirect()->route('interns.management')
+                ->with('error', 'Peserta magang tidak ditemukan');
+        }
+        
+        // Ubah view menjadi 'interns.receipt' jika sebelumnya 'interns.receipt-pdf'
+        $pdf = PDF::loadView('interns.receipt', ['interns' => $interns]);
+        
+        return $pdf->download('tanda-terima-' . date('YmdHis') . '.pdf');
+    } catch (\Exception $e) {
+        \Log::error('Error generating receipt: ' . $e->getMessage());
+        return redirect()->route('interns.management')
+            ->with('error', 'Terjadi kesalahan saat generate tanda terima');
+    }
+}
+}
 /**
  * Tampilkan halaman generate tanda terima untuk peserta terpilih
  */
    /**
      * Tampilkan halaman untuk memilih peserta magang yang akan dicetak tanda terimanya
      */
-    public function generateReceiptPage()
-    {
-        $interns = PesertaMagang::with(['bidang'])
-            ->orderBy('nama')
-            ->get();
+//     public function generateReceiptPage()
+//     {
+//         $interns = PesertaMagang::with(['bidang'])
+//             ->orderBy('nama')
+//             ->get();
             
-        return view('interns.generate-receipt', [
-            'interns' => $interns
-        ]);
-    }
-}
+//         return view('interns.generate-receipt', [
+//             'interns' => $interns
+//         ]);
+//     }
+// }

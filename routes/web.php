@@ -56,7 +56,8 @@ Route::get('/dashboard/interns/add', [App\Http\Controllers\InternController::cla
 Route::get('/dashboard/interns/edit/{id}', [App\Http\Controllers\InternController::class, 'editPage'])->name('interns.edit');
 Route::get('/dashboard/interns/detail/{id}', [App\Http\Controllers\InternController::class, 'detailPage'])->name('interns.detail');
 // Rute untuk tanda terima
-Route::get('/dashboard/interns/generate-receipt', [App\Http\Controllers\InternController::class, 'generateReceiptPage'])->name('interns.generate-receipt');
+// Route::get('/dashboard/interns/generate-receipt', [App\Http\Controllers\InternController::class, 'generateReceiptPage'])->name('interns.generate-receipt');
+Route::post('interns/download-receipt', [InternController::class, 'downloadReceipt'])->name('interns.download-receipt');
 Route::post('/dashboard/interns/download-receipt', [App\Http\Controllers\InternController::class, 'generateReceipt'])->name('interns.download-receipt');
 // API Routes
 Route::prefix('api')->group(function () {

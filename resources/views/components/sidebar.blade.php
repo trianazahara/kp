@@ -69,7 +69,7 @@
             </div>
         </div>
         
-        @if(auth()->user()->role === 'superadmin')
+        @if(auth()->check() && auth()->user()->role === 'superadmin')
         <a href="{{ route('admin.index') }}" class="flex items-center p-3 rounded-xl transform transition-all duration-500 hover:shadow-lg hover:shadow-green-500/10 focus:outline-none relative {{ request()->routeIs('admin.*') ? 'bg-gradient-to-r from-green-200 to-emerald-100 shadow-md scale-105' : 'hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50' }} active:scale-95 mb-4">
             <div class="transform transition-all duration-500 p-2 rounded-lg bg-gradient-to-br from-green-100 to-green-50">
                 <i class="fas fa-user-cog w-6"></i>

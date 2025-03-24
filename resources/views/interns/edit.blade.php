@@ -4,7 +4,7 @@
 @section('content')
 <div class="p-4 md:p-6 lg:p-8 w-full">
     <!-- Header -->
-    <div class="bg-gradient-to-r from-green-400 to-green-500 rounded-lg shadow-md p-4 mb-6">
+    <div class="bg-gradient-to-r from-emerald-400 via-cyan-400 to-yellow-200 rounded-lg shadow-md p-4 mb-6">
         <div class="flex items-center">
             <a href="{{ route('interns.management') }}" class="text-white mr-4">
                 <i class="fas fa-arrow-left"></i>
@@ -37,9 +37,6 @@
                             <option value="">Pilih jenis institusi</option>
                             <option value="Sekolah" {{ $intern->jenis_institusi == 'Sekolah' ? 'selected' : '' }}>Sekolah</option>
                             <option value="Universitas" {{ $intern->jenis_institusi == 'Universitas' ? 'selected' : '' }}>Universitas</option>
-                            <option value="Politeknik" {{ $intern->jenis_institusi == 'Politeknik' ? 'selected' : '' }}>Politeknik</option>
-                            <option value="Institut" {{ $intern->jenis_institusi == 'Institut' ? 'selected' : '' }}>Institut</option>
-                            <option value="Lainnya" {{ $intern->jenis_institusi == 'Lainnya' ? 'selected' : '' }}>Lainnya</option>
                         </select>
                     </div>
                     
@@ -75,7 +72,7 @@
                     <div>
                         <label for="bidang_id" class="block mb-2 text-sm font-medium text-gray-700">Bidang Penempatan</label>
                         <select id="bidang_id" name="bidang_id" class="bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-green-500 focus:border-green-500 block w-full p-2.5">
-                            <option value="">UMUM</option>
+                        <option value="">Ruang Penempatan</option>
                             @foreach($bidangs as $bidang)
                                 <option value="{{ $bidang->id_bidang }}" {{ $intern->id_bidang == $bidang->id_bidang ? 'selected' : '' }}>{{ $bidang->nama_bidang }}</option>
                             @endforeach
@@ -194,122 +191,270 @@
         </form>
     </div>
 </div>
+<div id="successModal" class="custom-modal-overlay">
+    <div class="custom-modal custom-modal-success">
+        <div class="custom-modal-header">
+            <div class="custom-modal-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+        </div>
+        <div class="custom-modal-body">
+            <h3 class="custom-modal-title">Berhasil</h3>
+            <p id="successMessage">Data peserta magang berhasil diperbarui</p>
+        </div>
+        <div class="custom-modal-footer">
+            <button class="custom-modal-btn custom-modal-btn-primary" id="successBtn">OK</button>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // DOM elements
-        const form = document.getElementById('edit-intern-form');
-        const jenisPesertaSelect = document.getElementById('jenis_peserta');
-        const mahasiswaSection = document.getElementById('mahasiswa-section');
-        const siswaSection = document.getElementById('siswa-section');
-        const tanggalMasukInput = document.getElementById('tanggal_masuk');
-        const tanggalKeluarInput = document.getElementById('tanggal_keluar');
-        
-        // Show/hide sections based on participant type
-        jenisPesertaSelect.addEventListener('change', function() {
-            mahasiswaSection.classList.add('hidden');
-            siswaSection.classList.add('hidden');
-            
-            if (this.value === 'mahasiswa') {
-                mahasiswaSection.classList.remove('hidden');
-                resetFields(siswaSection);
-            } else if (this.value === 'siswa') {
-                siswaSection.classList.remove('hidden');
-                resetFields(mahasiswaSection);
-            }
-        });
-        
-        // Make sure end date is after start date
-        tanggalMasukInput.addEventListener('change', function() {
-            tanggalKeluarInput.min = this.value;
-            if (tanggalKeluarInput.value && tanggalKeluarInput.value < this.value) {
-                tanggalKeluarInput.value = this.value;
-            }
-        });
-        
-      // Form submit handler pada edit.blade.php
-// Form submit handler pada edit.blade.php
-form.addEventListener('submit', function(e) {
-    e.preventDefault();
+  document.addEventListener('DOMContentLoaded', function() {
+    // DOM elements
+    const form = document.getElementById('edit-intern-form');
+    const jenisInstitusiSelect = document.getElementById('jenis_institusi');
+    const jenisPesertaSelect = document.getElementById('jenis_peserta');
+    const mahasiswaSection = document.getElementById('mahasiswa-section');
+    const siswaSection = document.getElementById('siswa-section');
+    const tanggalMasukInput = document.getElementById('tanggal_masuk');
+    const tanggalKeluarInput = document.getElementById('tanggal_keluar');
     
-    // Buat objek untuk detail_peserta
-    const detailPeserta = {};
-    
-    // Ambil jenis peserta
-    const jenisPeserta = document.getElementById('jenis_peserta').value;
-    
-    // Validasi dan isi detail_peserta sesuai jenis peserta
-    if (jenisPeserta === 'mahasiswa') {
-        detailPeserta.nim = document.getElementById('nim').value;
-        detailPeserta.jurusan = document.getElementById('jurusan_mahasiswa').value;
-        detailPeserta.fakultas = document.getElementById('fakultas').value || null;
-        detailPeserta.semester = document.getElementById('semester').value ? parseInt(document.getElementById('semester').value) : null;
-    } else if (jenisPeserta === 'siswa') {
-        detailPeserta.nisn = document.getElementById('nisn').value;
-        detailPeserta.jurusan = document.getElementById('jurusan_siswa').value;
-        detailPeserta.kelas = document.getElementById('kelas').value || null;
+    // Modal functions
+    function showConfirmationModal(message, onConfirm, onCancel, isWarning = false) {
+        const modal = document.getElementById('confirmationModal');
+        const messageEl = document.getElementById('confirmationMessage');
+        const confirmBtn = document.getElementById('confirmBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const warningIcon = document.getElementById('confirmation-warning-icon');
+        const extraWarning = document.getElementById('confirmationExtraWarning');
+        
+        // Set message
+        messageEl.textContent = message;
+        
+        // Tampilkan ikon warning dan pesan tambahan jika diperlukan
+        if (isWarning) {
+            warningIcon.classList.remove('hidden');
+            extraWarning.classList.remove('hidden');
+            confirmBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+            confirmBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+        } else {
+            warningIcon.classList.add('hidden');
+            extraWarning.classList.add('hidden');
+            confirmBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+            confirmBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+        }
+        
+        // Show modal
+        modal.classList.add('active');
+        
+        // Setup event handlers
+        const handleConfirm = () => {
+            modal.classList.remove('active');
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+            if (onConfirm) onConfirm();
+        };
+        
+        const handleCancel = () => {
+            modal.classList.remove('active');
+            confirmBtn.removeEventListener('click', handleConfirm);
+            cancelBtn.removeEventListener('click', handleCancel);
+            if (onCancel) onCancel();
+        };
+        
+        confirmBtn.addEventListener('click', handleConfirm);
+        cancelBtn.addEventListener('click', handleCancel);
     }
     
-    // Ubah FormData menjadi objek JSON
-    const postData = {
-        _token: document.querySelector('input[name="_token"]').value,
-        nama: document.getElementById('nama').value,
-        jenis_institusi: document.getElementById('jenis_institusi').value,
-        nama_institusi: document.getElementById('nama_institusi').value,
-        jenis_peserta: jenisPeserta,
-        email: document.getElementById('email').value || '',
-        no_hp: document.getElementById('no_hp').value || '',
-        bidang_id: document.getElementById('bidang_id').value || '',
-        mentor_id: document.getElementById('mentor_id').value || '',
-        tanggal_masuk: document.getElementById('tanggal_masuk').value,
-        tanggal_keluar: document.getElementById('tanggal_keluar').value,
-        nama_pembimbing: document.getElementById('nama_pembimbing').value || '',
-        telp_pembimbing: document.getElementById('telp_pembimbing').value || '',
-        detail_peserta: detailPeserta
-    };
-    
-    // Kirim data dengan format JSON
-    fetch('/api/interns/update/{{ $intern->id_magang }}', {
-        method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify(postData)
-    })
-    .then(response => {
-        // Handle response
-        if (!response.ok) {
-            return response.json().then(data => {
-                throw new Error(data.message || 'Terjadi kesalahan server');
-            });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.status === 'success') {
-            alert('Data peserta magang berhasil diperbarui');
-            window.location.href = '/dashboard/interns';
-        } else {
-            alert('Gagal memperbarui data: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert(error.message || 'Terjadi kesalahan saat memperbarui data');
-    });
-});
+    function showSuccessModal(message, onClose) {
+        const modal = document.getElementById('successModal');
+        const messageEl = document.getElementById('successMessage');
+        const okBtn = document.getElementById('successBtn');
         
-        // Helper function to reset fields in a section
-        function resetFields(section) {
-            const inputs = section.querySelectorAll('input');
-            inputs.forEach(input => {
-                input.value = '';
-            });
+        // Set message
+        messageEl.textContent = message;
+        
+        // Show modal
+        modal.classList.add('active');
+        
+        // Setup event handler
+        const handleClose = () => {
+            modal.classList.remove('active');
+            okBtn.removeEventListener('click', handleClose);
+            if (onClose) onClose();
+        };
+        
+        okBtn.addEventListener('click', handleClose);
+    }
+    
+    // Otomatis set jenis peserta berdasarkan jenis institusi
+    jenisInstitusiSelect.addEventListener('change', function() {
+        if (this.value === 'Universitas') {
+            jenisPesertaSelect.value = 'mahasiswa';
+            mahasiswaSection.classList.remove('hidden');
+            siswaSection.classList.add('hidden');
+            resetFields(siswaSection);
+        } else if (this.value === 'Sekolah') {
+            jenisPesertaSelect.value = 'siswa';
+            siswaSection.classList.remove('hidden');
+            mahasiswaSection.classList.add('hidden');
+            resetFields(mahasiswaSection);
         }
     });
+    
+    // Show/hide sections based on participant type
+    jenisPesertaSelect.addEventListener('change', function() {
+        mahasiswaSection.classList.add('hidden');
+        siswaSection.classList.add('hidden');
+        
+        if (this.value === 'mahasiswa') {
+            mahasiswaSection.classList.remove('hidden');
+            resetFields(siswaSection);
+            // Set jenis institusi ke Universitas
+            jenisInstitusiSelect.value = 'Universitas';
+        } else if (this.value === 'siswa') {
+            siswaSection.classList.remove('hidden');
+            resetFields(mahasiswaSection);
+            // Set jenis institusi ke Sekolah
+            jenisInstitusiSelect.value = 'Sekolah';
+        }
+    });
+    
+    // Make sure end date is after start date
+    tanggalMasukInput.addEventListener('change', function() {
+        tanggalKeluarInput.min = this.value;
+        if (tanggalKeluarInput.value && tanggalKeluarInput.value < this.value) {
+            tanggalKeluarInput.value = this.value;
+        }
+    });
+    
+    // Form submit handler
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Basic validation
+        const jenisPeserta = jenisPesertaSelect.value;
+        
+        if (!document.getElementById('nama').value || 
+            !document.getElementById('jenis_institusi').value || 
+            !document.getElementById('nama_institusi').value || 
+            !jenisPeserta || 
+            !document.getElementById('tanggal_masuk').value || 
+            !document.getElementById('tanggal_keluar').value) {
+            
+            showConfirmationModal('Data isian utama wajib diisi', () => {});
+            return;
+        }
+        
+        // Validasi detail peserta sesuai jenis
+        if (jenisPeserta === 'mahasiswa') {
+            if (!document.getElementById('nim').value || !document.getElementById('jurusan_mahasiswa').value) {
+                showConfirmationModal('NIM dan Jurusan wajib diisi untuk mahasiswa', () => {});
+                return;
+            }
+        } else if (jenisPeserta === 'siswa') {
+            if (!document.getElementById('nisn').value || !document.getElementById('jurusan_siswa').value) {
+                showConfirmationModal('NISN dan Jurusan wajib diisi untuk siswa', () => {});
+                return;
+            }
+        }
+        
+        // Buat objek untuk detail_peserta
+        const detailPeserta = {};
+        
+        // Validasi dan isi detail_peserta sesuai jenis peserta
+        if (jenisPeserta === 'mahasiswa') {
+            detailPeserta.nim = document.getElementById('nim').value;
+            detailPeserta.jurusan = document.getElementById('jurusan_mahasiswa').value;
+            detailPeserta.fakultas = document.getElementById('fakultas').value || null;
+            detailPeserta.semester = document.getElementById('semester').value ? parseInt(document.getElementById('semester').value) : null;
+        } else if (jenisPeserta === 'siswa') {
+            detailPeserta.nisn = document.getElementById('nisn').value;
+            detailPeserta.jurusan = document.getElementById('jurusan_siswa').value;
+            detailPeserta.kelas = document.getElementById('kelas').value || null;
+        }
+        
+        // Ubah FormData menjadi objek JSON
+        const postData = {
+            _token: document.querySelector('input[name="_token"]').value,
+            nama: document.getElementById('nama').value,
+            jenis_institusi: document.getElementById('jenis_institusi').value,
+            nama_institusi: document.getElementById('nama_institusi').value,
+            jenis_peserta: jenisPeserta,
+            email: document.getElementById('email').value || '',
+            no_hp: document.getElementById('no_hp').value || '',
+            bidang_id: document.getElementById('bidang_id').value || '',
+            mentor_id: document.getElementById('mentor_id').value || '',
+            tanggal_masuk: document.getElementById('tanggal_masuk').value,
+            tanggal_keluar: document.getElementById('tanggal_keluar').value,
+            nama_pembimbing: document.getElementById('nama_pembimbing').value || '',
+            telp_pembimbing: document.getElementById('telp_pembimbing').value || '',
+            detail_peserta: detailPeserta
+        };
+        
+        // Tampilkan loader/spinner
+        const submitBtn = document.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+        
+        // Kirim data dengan format JSON
+        fetch('/api/interns/update/{{ $intern->id_magang }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(postData)
+        })
+        .then(response => {
+            // Handle response
+            if (!response.ok) {
+                return response.json().then(data => {
+                    throw new Error(data.message || 'Terjadi kesalahan server');
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            if (data.status === 'success') {
+                // Tampilkan modal sukses
+                showSuccessModal('Data peserta magang berhasil diperbarui', () => {
+                    window.location.href = '/dashboard/interns';
+                });
+            } else {
+                // Tampilkan pesan error
+                showConfirmationModal('Gagal memperbarui data: ' + data.message, () => {}, null, true);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            // Tampilkan pesan error
+            showConfirmationModal(error.message || 'Terjadi kesalahan saat memperbarui data', () => {}, null, true);
+        });
+    });
+    
+    // Helper function to reset fields in a section
+    function resetFields(section) {
+        const inputs = section.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.value = '';
+        });
+    }
+    
+    // Trigger jenis peserta change event untuk set tampilan awal
+    jenisPesertaSelect.dispatchEvent(new Event('change'));
+});
 </script>
 @endsection
