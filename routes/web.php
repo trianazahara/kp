@@ -92,8 +92,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings/delete-photo', [App\Http\Controllers\SettingsController::class, 'deletePhoto'])->name('settings.delete-photo');
     Route::post('/settings/change-password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('settings.change-password');
     Route::post('/settings/upload-template', [App\Http\Controllers\SettingsController::class, 'uploadTemplate'])->name('settings.upload-template');
-    Route::get('/settings/preview-template/{id}', [App\Http\Controllers\SettingsController::class, 'previewTemplate'])->name('settings.preview-template');
     Route::delete('/settings/delete-template/{id}', [App\Http\Controllers\SettingsController::class, 'deleteTemplate'])->name('settings.delete-template');
+    Route::get('/settings/preview-template/{id}', [App\Http\Controllers\SettingsController::class, 'previewTemplate'])->name('settings.preview-template');
 });
 
 // Rute yang memerlukan autentikasi
