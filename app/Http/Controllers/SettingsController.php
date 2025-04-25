@@ -336,144 +336,130 @@ class SettingsController extends Controller
             'message' => 'Foto profil berhasil dihapus',
             'profile_picture' => null
         ]);
-    }
-
-    /**
-     * Upload template dokumen
-     */
+    }    
     public function uploadTemplate(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $validator = Validator::make($request->all(), [
-        'file' => 'required|mimes:doc,docx|max:51200', // max 50MB
-    ]);
-
-    if ($validator->fails()) {
-        return redirect()->back()
-            ->withErrors($validator)
-            ->withInput();
-    }
-
-    try {
-        $file = $request->file('file');
-        $originalName = $file->getClientOriginalName();
-        $uuid = Str::uuid()->toString();
-        $fileName = $uuid . '.' . $file->getClientOriginalExtension();
-        $filePath = 'templates/' . $fileName;
-
-        // Pastikan direktori templates ada
-        $directory = storage_path('app/public/templates');
-        if (!file_exists($directory)) {
-            mkdir($directory, 0777, true);
-        }
-
-        $file->storeAs('templates', $fileName, 'public');
-
-        Template::create([
-            'id_dokumen' => $uuid,
-            'id_users' => $user->id_users,
-            'file_path' => $filePath,
-            'active' => 1,
-            'created_by' => $user->id_users
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|mimes:doc,docx|max:51200',
         ]);
 
-        return redirect()->route('settings.index')
-            ->with('success', 'Template berhasil diunggah.');
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        try {
+            // Nonaktifkan template sebelumnya
+            Template::where('id_users', $user->id_users)
+                    ->update(['active' => 0]);
+
+            $file = $request->file('file');
+            $uuid = Str::uuid();
+            $originalName = $file->getClientOriginalName();
+            $storedName = $uuid . '---' . $originalName;
+            $filePath = 'templates/' . $storedName;
+
+            // Simpan file
+            $path = $file->storeAs('templates', $storedName, 'public');
+
+            // Simpan ke database
+            Template::create([
+                'id_dokumen' => $uuid,
+                'id_users' => $user->id_users,
+                'file_path' => $filePath,
+                'size' => $file->getSize(),
+                'active' => 1,
+                'created_by' => $user->id_users
+            ]);
+
+            return redirect()->back()
+                ->with('success', 'Template berhasil diupload!');
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Gagal upload template: ' . $e->getMessage());
+        }
+    }
+
+    public function deleteTemplate($id)
+    {
+        try {
+            $user = Auth::user();
+            $template = Template::where('id_dokumen', $id)
+                              ->where('id_users', $user->id_users)
+                              ->firstOrFail();
+
+            // Hapus file fisik
+            if (Storage::disk('public')->exists($template->file_path)) {
+                Storage::disk('public')->delete($template->file_path);
+            }
+
+            // Hapus dari database
+            $template->delete();
+
+            return redirect()->back()
+                ->with('success', 'Template berhasil dihapus');
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Gagal menghapus template: ' . $e->getMessage());
+        }
+    }
+
+// Controller
+public function previewTemplate($id)
+{
+    try {
+        $user = Auth::user();
+        $template = Template::where('id_dokumen', $id)
+                          ->where('id_users', $user->id_users)
+                          ->firstOrFail();
+
+        $filePath = storage_path('app/public/' . $template->file_path);
+
+        // Validasi file
+        if (!Storage::disk('public')->exists($template->file_path)) {
+            throw new \Exception("File tidak ditemukan");
+        }
+
+        // Konversi DOCX ke PDF
+        $phpWord = \PhpOffice\PhpWord\IOFactory::load($filePath);
+        
+        // Simpan sementara sebagai HTML
+        $tempHtml = tempnam(sys_get_temp_dir(), 'tpl') . '.html';
+        $phpWord->save($tempHtml, 'HTML');
+
+        // Konversi HTML ke PDF
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->setOptions([
+            'isHtml5ParserEnabled' => true,
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'Arial'
+        ]);
+        
+        $dompdf->loadHtml(file_get_contents($tempHtml));
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        // Hapus file temporary
+        unlink($tempHtml);
+
+        // Tampilkan PDF di browser
+        return response()->make(
+            $dompdf->output(),
+            200,
+            [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="preview.pdf"'
+            ]
+        );
 
     } catch (\Exception $e) {
         return redirect()->back()
-            ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            ->with('error', 'Gagal menampilkan preview: ' . $e->getMessage());
     }
-}
-    /**
-     * Preview template dokumen
-     */
-     public function previewTemplate($id)
-     {
-         $user = Auth::user();
-         $template = Template::where('id_dokumen', $id)
-                             ->where('active', 1)
-                             ->firstOrFail();
-     
-         // Cek apakah template milik user ini
-         if ($template->id_users != $user->id_users) {
-             abort(403, 'Tidak diizinkan mengakses template ini.');
-         }
-     
-         if (!Storage::disk('public')->exists($template->file_path)) {
-             abort(404, 'File template tidak ditemukan.');
-         }
-     
-         $filePath = storage_path('app/public/' . $template->file_path);
-         $extension = pathinfo($filePath, PATHINFO_EXTENSION);
-     
-         // Jika file adalah .docx atau .doc, konversi ke PDF
-         if ($extension == 'docx' || $extension == 'doc') {
-             // Menggunakan LibreOffice untuk konversi ke PDF
-             $pdfDirectory = storage_path('app/public/templates');
-             if (!file_exists($pdfDirectory)) {
-                 mkdir($pdfDirectory, 0777, true);
-             }
-     
-             $pdfFileName = 'template_' . $id . '.pdf';
-             $pdfPath = $pdfDirectory . '/' . $pdfFileName;
-     
-             // Perintah untuk mengonversi file ke PDF menggunakan LibreOffice
-             $command = "libreoffice --headless --convert-to pdf --outdir $pdfDirectory $filePath";
-             exec($command);
-     
-             // Cek apakah file PDF berhasil dibuat
-             if (!file_exists($pdfPath)) {
-                 return response()->json([
-                     'success' => false,
-                     'message' => 'Gagal mengonversi file ke PDF.'
-                 ], 500);
-             }
-     
-             // Kembalikan URL file PDF
-             return response()->json([
-                 'success' => true,
-                 'fileUrl' => asset('storage/templates/' . $pdfFileName)
-             ]);
-         }
-     
-         // Jika file adalah PDF, kembalikan URL file langsung
-         if ($extension == 'pdf') {
-             return response()->json([
-                 'success' => true,
-                 'fileUrl' => asset('storage/' . $template->file_path)
-             ]);
-         }
-     
-         // Jika bukan .docx, .doc, atau PDF, kembalikan pesan error
-         return response()->json([
-             'success' => false,
-             'message' => 'Hanya file .docx, .doc, atau PDF yang dapat dipreview.'
-         ], 400);
-     }
-    /**
-     * Hapus template dokumen
-     */
-    public function deleteTemplate($id)
-{
-    $user = Auth::user();
-    $template = Template::findOrFail($id);
-
-    // Cek apakah template milik user ini
-    if ($template->id_users != $user->id_users) {
-        abort(403, 'Tidak diizinkan menghapus template ini.');
-    }
-
-    // Hapus file fisik jika ada
-    if (Storage::disk('public')->exists($template->file_path)) {
-        Storage::disk('public')->delete($template->file_path);
-    }
-
-    // Soft delete dengan mengubah status active menjadi 0
-    $template->update(['active' => 0]);
-
-    return redirect()->route('settings.index')
-        ->with('success', 'Template berhasil dihapus.');
 }
 }

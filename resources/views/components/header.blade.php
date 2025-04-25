@@ -57,32 +57,33 @@ $notifications = $notifications ?? [];
                 </div>
             </div>
 
-            <!-- Profile Dropdown -->
-            <div class="relative" id="profile-menu">
-                <button
-                    type="button"
-                    class="flex items-center gap-3 cursor-pointer focus:outline-none"
-                    onclick="toggleProfileDropdown()"
-                >
-                    <div class="text-right">
-                        <p class="text-gray-700">{{ auth()->user()->nama }}</p>
-                        <p class="text-gray-500 text-sm">{{ ucfirst(auth()->user()->role) }}</p>
-                    </div>
-                    <div class="flex flex-col items-center gap-1">
-                        @if(auth()->user()->profile_picture)
-                        <img
-                            src="{{ asset('storage/' . auth()->user()->profile_picture) }}"
-                            alt="Profile"
-                            class="w-10 h-10 rounded-full object-cover"
-                        />
-                        @else
-                        <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center">
-                            <span class="text-sm font-medium">{{ substr(auth()->user()->nama, 0, 1) }}</span>
-                        </div>
-                        @endif
-                        <i class="fas fa-chevron-down text-gray-400 text-xs transform transition-transform duration-200" id="profile-arrow"></i>
-                    </div>
-                </button>
+             <!-- Profile Dropdown -->
+    <div class="relative" id="profile-menu">
+        <button
+            type="button"
+            class="flex items-center gap-3 cursor-pointer focus:outline-none"
+            onclick="toggleProfileDropdown()"
+        >
+            <div class="text-right">
+                <p class="text-gray-700">{{ auth()->user()->nama }}</p>
+                <p class="text-gray-500 text-sm">{{ ucfirst(auth()->user()->role) }}</p>
+            </div>
+            <div class="flex flex-col items-center gap-1">
+            @if(auth()->user()->profile_picture)
+<img
+    src="{{ secure_asset('storage/app/public/profile_pictures' . auth()->user()->profile_picture) }}"
+    alt="Profile"
+    class="w-10 h-10 rounded-full object-cover"
+    onerror="this.onerror=null; this.src='/images/default-avatar.png'"
+/>
+@else
+<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center">
+    <span class="text-sm font-medium">{{ substr(auth()->user()->nama, 0, 1) }}</span>
+</div>
+@endif
+                <i class="fas fa-chevron-down text-gray-400 text-xs transform transition-transform duration-200" id="profile-arrow"></i>
+            </div>
+        </button>
 
                 <!-- Profile Dropdown Menu -->
                 <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 hidden" id="profile-dropdown">
