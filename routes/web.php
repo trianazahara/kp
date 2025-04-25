@@ -71,7 +71,7 @@ Route::prefix('api')->group(function () {
     Route::get('/interns/mentors', [App\Http\Controllers\InternController::class, 'getMentors'])->name('api.interns.getMentors');
     Route::get('/interns/completing-soon', [App\Http\Controllers\InternController::class, 'getCompletingSoon'])->name('api.interns.getCompletingSoon');
     Route::get('/interns/history', [App\Http\Controllers\InternController::class, 'getHistory'])->name('api.interns.getHistory');
-});
+   });
 // Protected routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', function () {
@@ -85,6 +85,8 @@ Route::middleware('auth')->group(function () {
      Route::delete('/settings/delete-photo', [App\Http\Controllers\SettingsController::class, 'deletePhoto'])->name('settings.delete-photo');
      Route::post('/settings/change-password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('settings.change-password');
  
+     Route::get('/history/data', [App\Http\Controllers\InternController::class, 'historyDataIndex'])->name('history.data');
+
     // Template routes
     Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/update-profile', [App\Http\Controllers\SettingsController::class, 'updateProfile'])->name('settings.update-profile');
@@ -104,4 +106,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function() {
         return view('dashboard'); 
     })->name('dashboard');
+});
+
+Route::middleware(['auth', 'role:superadmin'])->group(function () {
+    Route::get('/admin', [App\Http\Controllers\AdminController::class, 'index'])->name('admin.index');
 });

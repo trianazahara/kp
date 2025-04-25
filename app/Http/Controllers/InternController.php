@@ -1273,4 +1273,37 @@ public function checkPositionsPage(Request $request)
             'interns' => $interns
         ]);
     }
+
+        /**
+ * Tampilkan halaman riwayat data anak magang
+ *
+ * @return \Illuminate\View\View
+ */
+public function historyDataIndex()
+{
+    try {
+        // Ambil data peserta magang
+        $interns = DB::table('peserta_magang')
+            ->select('peserta_magang.*', 'bidang.nama_bidang', 
+                DB::raw('EXISTS (SELECT 1 FROM penilaian WHERE penilaian.id_magang = peserta_magang.id_magang) as has_scores'))
+            ->leftJoin('bidang', 'peserta_magang.id_bidang', '=', 'bidang.id_bidang')
+            ->whereIn('peserta_magang.status', ['selesai', 'missing', 'almost'])
+            ->orderBy('peserta_magang.created_at', 'desc')
+            ->paginate(10);
+            
+        // Ambil semua bidang untuk filter
+        $bidangs = DB::table('bidang')
+            ->orderBy('nama_bidang')
+            ->get();
+            
+        return view('interns.history-static', [
+            'interns' => $interns,
+            'bidangs' => $bidangs
+        ]);
+    } catch (\Exception $e) {
+        \Log::error('Error loading history page: ' . $e->getMessage());
+        return redirect()->route('dashboard')
+            ->with('error', 'Terjadi kesalahan saat membuka halaman riwayat data: ' . $e->getMessage());
+    }
+}
 }

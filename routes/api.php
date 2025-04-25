@@ -6,6 +6,8 @@ use App\Http\Controllers\InternController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\DocumentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,6 +32,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/riwayat-data', [InternController::class, 'getHistory']);
         Route::get('/completing-soon', [InternController::class, 'getCompletingSoon']);
         Route::get('/mentors', [InternController::class, 'getMentors']);
+        Route::get('/export', [ReportController::class, 'exportInternsScore']);
+        Route::post('/generate-receipt', [ReportController::class, 'generateReceipt']);
         Route::get('/{id}', [InternController::class, 'getDetail']);
         
         // New routes for Data Magang sub-menu
@@ -48,6 +52,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Assessment routes
     Route::prefix('assessments')->group(function () {
         Route::get('/rekap-nilai', [AssessmentController::class, 'getRekapNilai']);
+        
+        // Routes for assessment details and certificate
+        Route::get('/intern/{id_magang}', [AssessmentController::class, 'getByInternId']);
+        Route::get('/certificate/{id_magang}', [AssessmentController::class, 'generateCertificate']);
         
         // Routes restricted to superadmin and admin roles
         Route::middleware('role:superadmin,admin')->group(function () {
@@ -73,10 +81,11 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Admin management routes
     Route::prefix('admin')->middleware('role:superadmin')->group(function () {
-        Route::get('/', [AdminController::class, 'index']);
-        Route::post('/add', [AdminController::class, 'add']);
-        Route::put('/{id}', [AdminController::class, 'update']);
-        Route::delete('/{id}', [AdminController::class, 'delete']);
+        Route::get('/', [AdminController::class, 'getAdmin']);
+        Route::post('/', [AdminController::class, 'addAdmin']);
+        Route::patch('/{id}', [AdminController::class, 'editAdmin']);
+        Route::delete('/{id}', [AdminController::class, 'deleteAdmin']);
+        Route::get('/mentors', [InternController::class, 'getMentors']);
     });
     
     // Report routes
@@ -84,15 +93,38 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/export', [ReportController::class, 'exportInternsScore']);
         Route::post('/generate-receipt', [ReportController::class, 'generateReceipt']);
     });
+    
+    // Notification routes
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'getNotifications']);
+        Route::get('/unread-count', [NotificationController::class, 'getUnreadCount']);
+        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::put('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    });
+    
+    // Document routes
+    Route::prefix('documents')->group(function () {
+        Route::post('/upload', [DocumentController::class, 'uploadTemplate']);
+        Route::get('/templates', [DocumentController::class, 'getTemplates']);
+        Route::get('/preview/{id}', [DocumentController::class, 'previewDocument']);
+        Route::delete('/template/{id}', [DocumentController::class, 'deleteTemplate']);
+        Route::post('/generate-sertifikat/{id}', [DocumentController::class, 'generateSertifikat']);
+        Route::get('/download-sertifikat/{id_magang}', [DocumentController::class, 'downloadSertifikat']);
+    });
 });
 
-// Public route for checking availability (if needed without auth)
+// Public routes
 Route::get('/interns/check-availability', [InternController::class, 'checkAvailability']);
+Route::get('/documents/certificates/{filename}', [DocumentController::class, 'viewCertificate']);
+Route::get('/documents/templates/{filename}', [DocumentController::class, 'viewTemplate']);
 
-// Untuk submenu Data Magang
-Route::get('/interns/management', [InternController::class, 'managementIndex'])->name('interns.management');
-Route::get('/interns/positions', [InternController::class, 'positionsIndex'])->name('interns.positions');
+// Web routes (bukan API) untuk sub-menu
+Route::middleware(['auth', 'web'])->group(function () {
+    // Untuk submenu Data Magang
+    Route::get('/interns/management', [InternController::class, 'managementIndex'])->name('interns.management');
+    Route::get('/interns/positions', [InternController::class, 'positionsIndex'])->name('interns.positions');
 
-// Untuk submenu Riwayat
-Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
-Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');
+    // Untuk submenu Riwayat
+    Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
+    Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');
+});
