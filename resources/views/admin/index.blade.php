@@ -1,8 +1,10 @@
+
 @extends('layouts.app')
 
 @section('title', 'Manajemen Admin')
 
 @section('styles')
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <style>
   @keyframes gradient {
     0% {
@@ -46,364 +48,366 @@
 @endsection
 
 @section('content')
-<div x-data="{
-    admins: [],
-    bidangList: [],
-    openDialog: false,
-    selectedAdmin: null,
-    formData: {
-        username: '',
-        password: '',
-        email: '',
-        nama: '',
-        nip: '',
-        id_bidang: '',
-        role: 'admin'
-    },
-    snackbarOpen: false,
-    snackbarMessage: '',
-    snackbarSeverity: 'success',
-    
-    init() {
-        this.fetchAdmins();
-        this.fetchBidangList();
-    },
-    
-    fetchBidangList() {
-        fetch('/api/bidang', {
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
-            }
-        })
-        .then(response => response.json())
-        .then(result => {
-            if (result.status === 'success') {
-                this.bidangList = result.data;
-            } else {
-                this.showSnackbar('Gagal mengambil data bidang', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching bidang:', error);
-            this.showSnackbar('Gagal mengambil data bidang', 'error');
-        });
-    },
-    
-    fetchAdmins() {
-        fetch('/api/admin', {
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            this.admins = data;
-        })
-        .catch(error => {
-            console.error('Error fetching admins:', error);
-            this.showSnackbar('Gagal mengambil data admin', 'error');
-        });
-    },
-    
-    openEditDialog(admin) {
-        this.selectedAdmin = admin;
-        this.formData = {
-            username: admin.username,
-            email: admin.email,
-            nama: admin.nama,
-            nip: admin.nip || '',
-            id_bidang: admin.id_bidang || '',
-            password: '',
-            role: admin.role
-        };
-        this.openDialog = true;
-    },
-    
-    openAddDialog() {
-        this.selectedAdmin = null;
-        this.formData = {
-            username: '',
-            password: '',
-            email: '',
-            nama: '',
-            nip: '',
-            id_bidang: '',
-            role: 'admin'
-        };
-        this.openDialog = true;
-    },
-    
-    showSnackbar(message, severity = 'success') {
-        this.snackbarMessage = message;
-        this.snackbarSeverity = severity;
-        this.snackbarOpen = true;
-        
-        setTimeout(() => {
-            this.snackbarOpen = false;
-        }, 6000);
-    },
-    
-    handleSubmit() {
-        const formData = { ...this.formData };
-        
-        // Jika password kosong saat edit, hapus dari payload
-        if (this.selectedAdmin && !formData.password) {
-            delete formData.password;
-        }
-        
-        const url = this.selectedAdmin 
-            ? `/api/admin/${this.selectedAdmin.id_users}`
-            : '/api/admin';
-            
-        const method = this.selectedAdmin ? 'PATCH' : 'POST';
-        
-        fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
-            },
-            body: JSON.stringify(formData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            this.showSnackbar(
-                this.selectedAdmin ? 'Admin berhasil diperbarui' : 'Admin berhasil ditambahkan'
-            );
-            this.openDialog = false;
-            this.fetchAdmins();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            this.showSnackbar(error.message || 'Terjadi kesalahan', 'error');
-        });
-    },
-    
-    handleDelete(id_users) {
-        if (confirm('Apakah Anda yakin ingin menghapus admin ini?')) {
-            fetch(`/api/admin/${id_users}`, {
-                method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content')
-                }
-            })
-            .then(response => {
-                if (response.ok) {
-                    this.showSnackbar('Admin berhasil dihapus');
-                    this.fetchAdmins();
-                } else {
-                    throw new Error('Gagal menghapus admin');
-                }
-            })
-            .catch(error => {
-                console.error('Delete error:', error);
-                this.showSnackbar('Gagal menghapus admin', 'error');
-            });
-        }
-    }
-}" class="w-full">
-    <!-- Header Section -->
-    <div class="w-full rounded-xl mb-4 p-3 flex justify-between items-center overflow-hidden transition-all duration-300 animated-bg">
-        <h1 class="text-2xl text-white font-bold">Manajemen Admin</h1>
-        <button
-            @click="openAddDialog()"
-            class="px-4 py-2 bg-white text-teal-500 font-medium rounded-md hover:bg-gray-100 flex items-center"
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
-            </svg>
-            TAMBAH ADMIN
-        </button>
+<div class="p-4 md:p-6 lg:p-8 w-full">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-emerald-400 via-cyan-400 to-yellow-200 rounded-lg shadow-md p-4 mb-6">
+        <div class="flex justify-between items-center">
+            <h1 class="text-white text-xl md:text-2xl font-bold">Manajemen Admin</h1>
+            <button id="add-admin-btn" class="bg-white hover:bg-gray-100 text-emerald-500 font-semibold py-2 px-4 rounded-md flex items-center text-sm">
+                <span class="mr-1">+</span> TAMBAH ADMIN
+            </button>
+        </div>
     </div>
 
-    <!-- Table Section -->
-    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+    <!-- Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NIP</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidang</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NIP</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidang</th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                <template x-for="admin in admins" :key="admin.id_users">
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" x-text="admin.nama"></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="admin.nip || '-'"></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="admin.username"></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="admin.email"></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" x-text="admin.nama_bidang || '-'"></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            <button 
-                                @click="openEditDialog(admin)"
-                                class="p-1 rounded-full text-blue-600 hover:bg-blue-100 mr-1"
-                                title="Edit admin"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                </svg>
-                            </button>
-                            <button 
-                                @click="handleDelete(admin.id_users)"
-                                class="p-1 rounded-full text-red-600 hover:bg-red-100"
-                                title="Hapus admin"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
-                        </td>
-                    </tr>
-                </template>
-                <template x-if="admins.length === 0">
-                    <tr>
-                        <td colspan="6" class="px-6 py-4 text-center text-gray-500">
-                            Tidak ada data admin yang tersedia
-                        </td>
-                    </tr>
-                </template>
+                @foreach ($admins as $admin)
+                <tr class="hover:bg-gray-100 transition-colors duration-200">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ $admin->nama }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $admin->nip ?? '-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $admin->username }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $admin->email }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ $admin->nama_bidang ?? '-' }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                        <button class="text-blue-500 hover:text-blue-700 edit-admin px-1" data-id="{{ $admin->id_users }}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="text-red-500 hover:text-red-700 delete-admin px-1" data-id="{{ $admin->id_users }}">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+                @endforeach
             </tbody>
         </table>
     </div>
 
-    <!-- Form Dialog -->
-    <div x-show="openDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" x-cloak>
-        <div class="bg-white rounded-lg shadow-lg w-full max-w-lg">
-            <div class="p-4 border-b">
-                <h2 class="text-lg font-semibold" x-text="selectedAdmin ? 'Edit Admin' : 'Tambah Admin Baru'"></h2>
-            </div>
-            <form @submit.prevent="handleSubmit">
-                <div class="p-4 space-y-4">
+    <!-- Modal -->
+    <div id="admin-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 class="text-lg font-medium text-gray-900 mb-4" id="modal-title">Tambah Admin Baru</h3>
+            
+            <form id="admin-form" method="POST">
+                @csrf
+                <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
-                        <input
-                            type="text"
-                            x-model="formData.nama"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            required
-                        >
+                        <label for="nama" class="block text-sm font-medium text-gray-700">Nama Lengkap</label>
+                        <input type="text" id="nama" name="nama" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
                     </div>
+                    
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">NIP</label>
-                        <input
-                            type="text"
-                            x-model="formData.nip"
-                            @input="formData.nip = $event.target.value.replace(/[^0-9]/g, '')"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        >
+                        <label for="nip" class="block text-sm font-medium text-gray-700">NIP</label>
+                        <input type="text" id="nip" name="nip" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm">
                     </div>
+                    
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                        <input
-                            type="text"
-                            x-model="formData.username"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            required
-                        >
+                        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                        <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
                     </div>
+                    
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <input
-                            type="email"
-                            x-model="formData.email"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            required
-                        >
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="email" name="email" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
                     </div>
+                    
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Bidang</label>
-                        <select
-                            x-model="formData.id_bidang"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            required
-                        >
+                        <label for="id_bidang" class="block text-sm font-medium text-gray-700">Bidang</label>
+                        <select id="id_bidang" name="id_bidang" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
                             <option value="">Pilih Bidang</option>
-                            <template x-for="bidang in bidangList" :key="bidang.id_bidang">
-                                <option :value="bidang.id_bidang" x-text="bidang.nama_bidang"></option>
-                            </template>
+                            @foreach ($bidangList as $bidang)
+                            <option value="{{ $bidang->id_bidang }}">{{ $bidang->nama_bidang }}</option>
+                            @endforeach
                         </select>
                     </div>
+                    
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                        <input
-                            type="password"
-                            x-model="formData.password"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md"
-                            :required="!selectedAdmin"
-                        >
-                        <p x-show="selectedAdmin" class="text-xs text-gray-500 mt-1">
-                            Kosongkan jika tidak ingin mengubah password
-                        </p>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
+                        <p id="password-help" class="text-xs text-gray-500 mt-1 hidden">Kosongkan jika tidak ingin mengubah password</p>
                     </div>
+                    
+                    <input type="hidden" id="admin_id" name="admin_id">
+                    <input type="hidden" name="role" value="admin">
                 </div>
-                <div class="p-4 border-t flex justify-end space-x-2">
-                    <button
-                        type="button"
-                        @click="openDialog = false"
-                        class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-md"
-                    >
+                
+                <div class="mt-5 flex justify-end">
+                    <button type="button" id="cancel-btn" class="mr-3 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
                         Batal
                     </button>
-                    <button
-                        type="submit"
-                        class="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700"
-                    >
-                        <span x-text="selectedAdmin ? 'Perbarui' : 'Tambah'"></span>
+                    <button type="submit" id="submit-btn" class="px-4 py-2 text-sm font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-md">
+                        Tambah
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Snackbar -->
-    <div
-        x-show="snackbarOpen"
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 transform translate-y-2"
-        x-transition:enter-end="opacity-100 transform translate-y-0"
-        x-transition:leave="transition ease-in duration-300"
-        x-transition:leave-start="opacity-100 transform translate-y-0"
-        x-transition:leave-end="opacity-0 transform translate-y-2"
-        class="fixed bottom-4 right-4 z-50"
-        x-cloak
-    >
-        <div 
-            class="px-4 py-3 rounded-lg shadow-lg flex items-center gap-2"
-            :class="snackbarSeverity === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'"
-        >
-            <svg 
-                x-show="snackbarSeverity === 'success'"
-                xmlns="http://www.w3.org/2000/svg" 
-                class="h-5 w-5" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-            >
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-            </svg>
-            <svg 
-                x-show="snackbarSeverity === 'error'"
-                xmlns="http://www.w3.org/2000/svg" 
-                class="h-5 w-5" 
-                viewBox="0 0 20 20" 
-                fill="currentColor"
-            >
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-            </svg>
-            <span x-text="snackbarMessage"></span>
-            <button @click="snackbarOpen = false" class="ml-2 text-white hover:text-gray-200">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                </svg>
-            </button>
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Konfirmasi Hapus</h3>
+            <p class="text-gray-500 mb-6" id="delete-message">Apakah Anda yakin ingin menghapus admin ini?</p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-delete" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md">Batal</button>
+                <button id="confirm-delete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md">Hapus</button>
+            </div>
+            <input type="hidden" id="delete-id">
         </div>
     </div>
+
+    <!-- Notification -->
+    <div id="notification" class="fixed bottom-4 right-4 bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-md shadow-md flex items-center hidden">
+        <span id="notification-icon" class="mr-2 flex-shrink-0">
+            <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+            </svg>
+        </span>
+        <p id="notification-message" class="text-sm font-medium"></p>
+    </div>
 </div>
+@endsection
+
+@section('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // DOM Elements
+    const adminModal = document.getElementById('admin-modal');
+    const adminForm = document.getElementById('admin-form');
+    const modalTitle = document.getElementById('modal-title');
+    const submitBtn = document.getElementById('submit-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const addAdminBtn = document.getElementById('add-admin-btn');
+    const passwordHelp = document.getElementById('password-help');
+    const deleteModal = document.getElementById('delete-modal');
+    const cancelDeleteBtn = document.getElementById('cancel-delete');
+    const confirmDeleteBtn = document.getElementById('confirm-delete');
+    const deleteIdInput = document.getElementById('delete-id');
+    const deleteMessage = document.getElementById('delete-message');
+    
+    // State
+    let isEditMode = false;
+    let selectedAdmin = null;
+    
+    // Event Listeners
+    addAdminBtn.addEventListener('click', function() {
+        openModal();
+    });
+    
+    document.querySelectorAll('.edit-admin').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const adminId = this.getAttribute('data-id');
+            const admin = {!! json_encode($admins) !!}.find(a => a.id_users == adminId);
+            openModal(admin);
+        });
+    });
+    
+    document.querySelectorAll('.delete-admin').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const adminId = this.getAttribute('data-id');
+            const admin = {!! json_encode($admins) !!}.find(a => a.id_users == adminId);
+            openDeleteModal(admin);
+        });
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        closeModal();
+    });
+    
+    adminForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitForm();
+    });
+    
+    cancelDeleteBtn.addEventListener('click', function() {
+        closeDeleteModal();
+    });
+    
+    confirmDeleteBtn.addEventListener('click', function() {
+        deleteAdmin();
+    });
+    
+    // NIP input - restrict to numbers only
+    document.getElementById('nip').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+    
+    // Functions
+    function openModal(admin = null) {
+        isEditMode = !!admin;
+        selectedAdmin = admin;
+        
+        if (isEditMode) {
+            // Edit Mode
+            modalTitle.textContent = 'Edit Admin';
+            document.getElementById('nama').value = admin.nama;
+            document.getElementById('nip').value = admin.nip || '';
+            document.getElementById('username').value = admin.username;
+            document.getElementById('email').value = admin.email;
+            document.getElementById('id_bidang').value = admin.id_bidang;
+            document.getElementById('password').value = '';
+            document.getElementById('password').removeAttribute('required');
+            document.getElementById('admin_id').value = admin.id_users;
+            passwordHelp.classList.remove('hidden');
+            submitBtn.textContent = 'Perbarui';
+        } else {
+            // Add Mode
+            modalTitle.textContent = 'Tambah Admin Baru';
+            adminForm.reset();
+            document.getElementById('password').setAttribute('required', 'required');
+            passwordHelp.classList.add('hidden');
+            submitBtn.textContent = 'Tambah';
+        }
+        
+        adminModal.classList.remove('hidden');
+    }
+    
+    function closeModal() {
+        adminModal.classList.add('hidden');
+        adminForm.reset();
+    }
+    
+    function submitForm() {
+        console.log('Form is being submitted');
+        
+        // Collect form data for debugging
+        const formData = new FormData(adminForm);
+        const formValues = {};
+        formData.forEach((value, key) => { formValues[key] = value });
+        console.log('Form data:', formValues);
+        
+        // Make sure password field is enabled for submission
+        const passwordField = document.getElementById('password');
+        passwordField.disabled = false;
+        
+        // Remove any existing _method input
+        const existingMethodInput = adminForm.querySelector('input[name="_method"]');
+        if (existingMethodInput) {
+            existingMethodInput.remove();
+        }
+        
+        if (!isEditMode) {
+            // Add new admin - set form action and method directly
+            adminForm.action = "{{ route('admin.store') }}";
+            adminForm.method = 'POST';
+            console.log('Creating new admin, sending to:', adminForm.action);
+        } else {
+            // Update existing admin
+            const adminId = selectedAdmin.id_users;
+            
+            // Create the proper URL for updating
+            adminForm.action = "{{ url('/admin') }}/" + adminId;
+            adminForm.method = 'POST';
+            
+            // Add method input for PUT
+            const methodInput = document.createElement('input');
+            methodInput.type = 'hidden';
+            methodInput.name = '_method';
+            methodInput.value = 'PUT';
+            adminForm.appendChild(methodInput);
+            
+            // If password is empty in edit mode, disable it
+            if (!passwordField.value) {
+                passwordField.disabled = true;
+            }
+            
+            console.log('Updating admin, sending to:', adminForm.action);
+        }
+        
+        // Submit the form
+        adminForm.submit();
+    }
+    
+    function openDeleteModal(admin) {
+        deleteIdInput.value = admin.id_users;
+        deleteMessage.textContent = `Apakah Anda yakin ingin menghapus admin "${admin.nama}"?`;
+        deleteModal.classList.remove('hidden');
+    }
+    
+    function closeDeleteModal() {
+        deleteModal.classList.add('hidden');
+    }
+    
+    function deleteAdmin() {
+        const id = deleteIdInput.value;
+        
+        // Create form and submit
+        const deleteForm = document.createElement('form');
+        deleteForm.method = 'POST';
+        deleteForm.action = "{{ url('/admin') }}/" + id;
+        
+        // Add CSRF token
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = '_token';
+        csrfInput.value = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        deleteForm.appendChild(csrfInput);
+        
+        // Add method spoofing for DELETE
+        const methodInput = document.createElement('input');
+        methodInput.type = 'hidden';
+        methodInput.name = '_method';
+        methodInput.value = 'DELETE';
+        deleteForm.appendChild(methodInput);
+        
+        // Append to body and submit
+        document.body.appendChild(deleteForm);
+        deleteForm.submit();
+    }
+    
+    function showNotification(message, type = 'success') {
+        const notification = document.getElementById('notification');
+        const messageEl = document.getElementById('notification-message');
+        const iconEl = document.getElementById('notification-icon');
+        
+        // Set message
+        messageEl.textContent = message;
+        
+        // Set style based on type
+        if (type === 'success') {
+            notification.className = 'fixed bottom-4 right-4 bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-md shadow-md flex items-center';
+            iconEl.innerHTML = `
+                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+            `;
+        } else {
+            notification.className = 'fixed bottom-4 right-4 bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded-md shadow-md flex items-center';
+            iconEl.innerHTML = `
+                <svg class="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                </svg>
+            `;
+        }
+        
+        // Show notification
+        notification.classList.remove('hidden');
+        
+        // Hide after 3 seconds
+        setTimeout(() => {
+            notification.classList.add('hidden');
+        }, 3000);
+    }
+    
+    // Check for flash messages
+    @if(session('success'))
+        showNotification("{{ session('success') }}", 'success');
+    @endif
+    
+    @if(session('error'))
+        showNotification("{{ session('error') }}", 'error');
+    @endif
+});
+</script>
 @endsection
