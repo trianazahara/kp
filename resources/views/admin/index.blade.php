@@ -279,55 +279,91 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function submitForm() {
-        console.log('Form is being submitted');
-        
-        // Collect form data for debugging
-        const formData = new FormData(adminForm);
-        const formValues = {};
-        formData.forEach((value, key) => { formValues[key] = value });
-        console.log('Form data:', formValues);
-        
-        // Make sure password field is enabled for submission
-        const passwordField = document.getElementById('password');
-        passwordField.disabled = false;
-        
-        // Remove any existing _method input
-        const existingMethodInput = adminForm.querySelector('input[name="_method"]');
-        if (existingMethodInput) {
-            existingMethodInput.remove();
-        }
-        
-        if (!isEditMode) {
-            // Add new admin - set form action and method directly
-            adminForm.action = "{{ route('admin.store') }}";
-            adminForm.method = 'POST';
-            console.log('Creating new admin, sending to:', adminForm.action);
-        } else {
-            // Update existing admin
-            const adminId = selectedAdmin.id_users;
-            
-            // Create the proper URL for updating
-            adminForm.action = "{{ url('/admin') }}/" + adminId;
-            adminForm.method = 'POST';
-            
-            // Add method input for PUT
-            const methodInput = document.createElement('input');
-            methodInput.type = 'hidden';
-            methodInput.name = '_method';
-            methodInput.value = 'PUT';
-            adminForm.appendChild(methodInput);
-            
-            // If password is empty in edit mode, disable it
-            if (!passwordField.value) {
-                passwordField.disabled = true;
-            }
-            
-            console.log('Updating admin, sending to:', adminForm.action);
-        }
-        
-        // Submit the form
-        adminForm.submit();
+    console.log('Form submission started');
+    
+    // Kumpulkan data form
+    const formData = new FormData(adminForm);
+    
+    // Debug: Tampilkan data yang akan dikirim
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
     }
+    
+    // Get CSRF token
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    
+    // Tentukan URL, jaga format asli untuk kompatibilitas
+    let url;
+    let method;
+    
+    if (isEditMode) {
+        // Update existing admin
+        url = "{{ url('/admin') }}/" + selectedAdmin.id_users;
+        method = 'PUT';
+        
+        // Jika password kosong, hapus dari form data
+        const passwordField = document.getElementById('password');
+        if (!passwordField.value) {
+            formData.delete('password');
+        }
+    } else {
+        // Add new admin
+        url = "{{ route('admin.store') }}";
+        method = 'POST';
+    }
+    
+    console.log(`Sending ${method} request to: ${url}`);
+    
+    // Untuk PUT requests, tambahkan _method field
+    if (method === 'PUT') {
+        formData.append('_method', 'PUT');
+    }
+    
+    // Kirim dengan fetch API
+    fetch(url, {
+        method: 'POST', // Selalu POST karena FormData
+        body: formData,
+        headers: {
+            'X-CSRF-TOKEN': csrfToken,
+            'Accept': 'application/json,text/html'
+        },
+        credentials: 'same-origin',
+        redirect: 'follow'
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        
+        // Cek jika ini redirect (biasanya sukses untuk Laravel)
+        if (response.redirected) {
+            console.log('Redirected to:', response.url);
+            window.location.href = response.url;
+            return null;
+        }
+        
+        // Coba parse sebagai JSON, jika gagal ambil sebagai text
+        if (response.headers.get('content-type')?.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text();
+        }
+    })
+    .then(data => {
+        if (data === null) return; // Sudah dihandle sebagai redirect
+        
+        console.log('Response data:', data);
+        
+        // Tampilkan notifikasi sukses dan reload
+        showNotification(isEditMode ? 'Admin berhasil diperbarui' : 'Admin berhasil ditambahkan', 'success');
+        setTimeout(() => { window.location.reload(); }, 1500);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Terjadi kesalahan: ' + error.message, 'error');
+    });
+    
+    // Prevent default form submission
+    return false;
+}
     
     function openDeleteModal(admin) {
         deleteIdInput.value = admin.id_users;
