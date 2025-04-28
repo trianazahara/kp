@@ -12,7 +12,8 @@
         "laravel/framework": "^9.19",
         "laravel/sanctum": "^3.0",
         "laravel/tinker": "^2.7",
-        "phpoffice/phpword": "*"
+        "phpoffice/phpword": "^1.3",
+        "setasign/fpdi": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",

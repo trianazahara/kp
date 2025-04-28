@@ -93,8 +93,11 @@ Route::middleware('auth')->group(function () {
      Route::get('/history/data', [App\Http\Controllers\InternController::class, 'historyDataIndex'])->name('history.data');
      Route::get('/history/scores', [App\Http\Controllers\AssessmentController::class, 'scoresIndex'])->name('history.scores');
 
-     Route::get('/rekap-nilai', [App\Http\Controllers\AssessmentController::class, 'index'])->name('rekap-nilai.index');
+    //  Route::get('/rekap-nilai', [App\Http\Controllers\AssessmentController::class, 'index'])->name('rekap-nilai.index');
+    Route::get('/nilai/edit/{id}', [App\Http\Controllers\AssessmentController::class, 'editPage'])->name('nilai.edit');
     
+    // Route API untuk update nilai
+    Route::put('/api/assessments/update-nilai/{id}', [App\Http\Controllers\AssessmentController::class, 'updateScore'])->name('api.assessments.update');
     // Template routes
     Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/update-profile', [App\Http\Controllers\SettingsController::class, 'updateProfile'])->name('settings.update-profile');

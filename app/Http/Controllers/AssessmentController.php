@@ -13,11 +13,6 @@ use Illuminate\Support\Facades\Validator;
 
 class AssessmentController extends Controller
 {
-    public function index()
-    {
-        return view('interns.rekap-nilai');
-    }
-
     // Fungsi untuk membuat notifikasi ke seluruh user saat ada perubahan nilai
     private function createInternNotification($userId, $internName, $action)
     {
@@ -389,22 +384,36 @@ class AssessmentController extends Controller
                     'message' => 'Unauthorized: User authentication required'
                 ], 401);
             }
-    
+            
             DB::beginTransaction();
-    
-            // Cek data penilaian
+            
+            // Coba dulu dengan id_penilaian
             $internData = DB::select("
-                SELECT pm.nama 
+                SELECT p.id_penilaian, pm.nama 
                 FROM penilaian p 
                 JOIN peserta_magang pm ON p.id_magang = pm.id_magang 
                 WHERE p.id_penilaian = ?
             ", [$id]);
-    
+            
+            // Jika tidak ditemukan, coba dengan id_magang
             if (empty($internData)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Data penilaian tidak ditemukan'
-                ], 404);
+                $internData = DB::select("
+                    SELECT p.id_penilaian, pm.nama 
+                    FROM penilaian p 
+                    JOIN peserta_magang pm ON p.id_magang = pm.id_magang 
+                    WHERE p.id_magang = ?
+                ", [$id]);
+                
+                // Masih tidak ditemukan
+                if (empty($internData)) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Data penilaian tidak ditemukan'
+                    ], 404);
+                }
+                
+                // Gunakan id_penilaian yang ditemukan untuk update
+                $id = $internData[0]->id_penilaian;
             }
     
             // Validasi request
@@ -484,102 +493,398 @@ class AssessmentController extends Controller
     public function getByInternId($id_magang)
     {
         try {
-            // Query untuk ambil detail nilai dan data peserta
+            // Log untuk debugging
+            \Log::info('getByInternId dipanggil dengan ID: ' . $id_magang);
+            
+            // Query sederhana dulu untuk tes
             $assessment = DB::select("
-                SELECT p.*, pm.nama, pm.jenis_peserta,
-                       i.nama_institusi, b.nama_bidang,
-                       CASE 
-                           WHEN pm.jenis_peserta = 'mahasiswa' THEN m.nim
-                           ELSE s.nisn
-                       END as nomor_induk,
-                       m.fakultas, m.jurusan as jurusan_mahasiswa,
-                       s.jurusan as jurusan_siswa, s.kelas
+                SELECT p.*, pm.nama 
                 FROM penilaian p
                 JOIN peserta_magang pm ON p.id_magang = pm.id_magang
-                LEFT JOIN institusi i ON pm.id_institusi = i.id_institusi
-                LEFT JOIN bidang b ON pm.id_bidang = b.id_bidang
-                LEFT JOIN data_mahasiswa m ON pm.id_magang = m.id_magang
-                LEFT JOIN data_siswa s ON pm.id_magang = s.id_magang
                 WHERE p.id_magang = ?
             ", [$id_magang]);
-
+    
+            \Log::info('Hasil query: ' . json_encode(['count' => count($assessment)]));
+    
             if (empty($assessment)) {
                 return response()->json([
+                    'status' => 'error',
                     'message' => 'Penilaian tidak ditemukan'
                 ], 404);
             }
-
+    
+            \Log::info('Data assessment: ' . json_encode(['data' => $assessment[0]]));
             return response()->json($assessment[0]);
         } catch (\Exception $error) {
             \Log::error('Error getting assessment: ' . $error->getMessage());
-            return response()->json(['message' => 'Terjadi kesalahan server'], 500);
+            \Log::error('Error trace: ' . $error->getTraceAsString());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan server: ' . $error->getMessage()
+            ], 500);
         }
     }
 
     // Generate sertifikat magang
     public function generateCertificate($id_magang)
-    {
-        try {
-            // Ambil data lengkap peserta
-            $assessment = DB::select("
-                SELECT p.*, pm.nama, pm.jenis_peserta,
-                       i.nama_institusi, b.nama_bidang,
-                       CASE 
-                           WHEN pm.jenis_peserta = 'mahasiswa' THEN m.nim
-                           ELSE s.nisn
-                       END as nomor_induk,
-                       m.fakultas, m.jurusan as jurusan_mahasiswa,
-                       s.jurusan as jurusan_siswa, s.kelas,
-                       pm.tanggal_masuk, pm.tanggal_keluar
-                FROM penilaian p
-                JOIN peserta_magang pm ON p.id_magang = pm.id_magang
-                LEFT JOIN institusi i ON pm.id_institusi = i.id_institusi
-                LEFT JOIN bidang b ON pm.id_bidang = b.id_bidang
-                LEFT JOIN data_mahasiswa m ON pm.id_magang = m.id_magang
-                LEFT JOIN data_siswa s ON pm.id_magang = s.id_magang
-                WHERE p.id_magang = ?
-            ", [$id_magang]);
+{
+    try {
+        // Ambil data lengkap peserta
+        $assessment = DB::select("
+            SELECT 
+                p.*, 
+                pm.nama, 
+                pm.jenis_peserta,
+                pm.nama_institusi, 
+                b.nama_bidang,
+                CASE 
+                    WHEN pm.jenis_peserta = 'mahasiswa' THEN m.nim
+                    ELSE s.nisn
+                END as nomor_induk,
+                m.fakultas, 
+                m.jurusan as jurusan_mahasiswa,
+                s.jurusan as jurusan_siswa, 
+                s.kelas,
+                pm.tanggal_masuk, 
+                pm.tanggal_keluar
+            FROM penilaian p
+            JOIN peserta_magang pm ON p.id_magang = pm.id_magang
+            LEFT JOIN bidang b ON pm.id_bidang = b.id_bidang
+            LEFT JOIN data_mahasiswa m ON pm.id_magang = m.id_magang
+            LEFT JOIN data_siswa s ON pm.id_magang = s.id_magang
+            WHERE p.id_magang = ?
+        ", [$id_magang]);
 
-            if (empty($assessment)) {
-                return response()->json([
-                    'message' => 'Data tidak ditemukan'
-                ], 404);
-            }
-
-            // Ambil template sertifikat aktif
-            $template = DB::select("
-                SELECT file_path
-                FROM dokumen_template
-                WHERE jenis = 'sertifikat'
-                AND active = true
-                LIMIT 1
-            ");
-
-            if (empty($template)) {
-                return response()->json([
-                    'message' => 'Template sertifikat tidak ditemukan'
-                ], 404);
-            }
-
-            // Untuk implementasi PDF di Laravel, bisa menggunakan Package seperti TCPDF, DOMPDF, Snappy
-            // Berikut contoh menggunakan DOMPDF
-            
-            // Persiapkan data untuk view
-            $data = [
-                'peserta' => $assessment[0],
-                'tanggal' => Carbon::now()->locale('id')->isoFormat('D MMMM Y')
-            ];
-
-            // Generate PDF
-            $pdf = \PDF::loadView('sertifikat.template', $data);
-            
-            return $pdf->download('sertifikat-magang.pdf');
-            
-        } catch (\Exception $error) {
-            \Log::error('Error generating certificate: ' . $error->getMessage());
-            return response()->json(['message' => 'Terjadi kesalahan server'], 500);
+        if (empty($assessment)) {
+            return response()->json([
+                'message' => 'Data tidak ditemukan'
+            ], 404);
         }
+
+        // Ambil template dari database
+        $template = DB::table('dokumen_template')
+            ->where('active', 1)
+            ->first();
+
+        if (!$template) {
+            return response()->json([
+                'message' => 'Template sertifikat tidak ditemukan'
+            ], 404);
+        }
+
+        $peserta = $assessment[0];
+        
+        // Hitung rata-rata nilai
+        $nilai = [
+            $peserta->nilai_teamwork ?? 0,
+            $peserta->nilai_komunikasi ?? 0,
+            $peserta->nilai_pengambilan_keputusan ?? 0,
+            $peserta->nilai_kualitas_kerja ?? 0,
+            $peserta->nilai_teknologi ?? 0,
+            $peserta->nilai_disiplin ?? 0,
+            $peserta->nilai_tanggungjawab ?? 0,
+            $peserta->nilai_kerjasama ?? 0,
+            $peserta->nilai_kejujuran ?? 0,
+            $peserta->nilai_kebersihan ?? 0
+        ];
+        
+        $jumlah = array_sum($nilai);
+        $rata_rata = $jumlah / count($nilai);
+        
+        // Periksa path file dan tangani kesalahan dengan benar
+        $templatePath = public_path($template->file_path);
+        
+        // Verifikasi apakah file template ada
+        if (!file_exists($templatePath)) {
+            // Coba temukan path yang benar
+            $alternativePath = storage_path('app/public/' . $template->file_path);
+            
+            if (file_exists($alternativePath)) {
+                $templatePath = $alternativePath;
+            } else {
+                // Coba path lain jika diperlukan
+                $otherPath = base_path('public/' . $template->file_path);
+                
+                if (file_exists($otherPath)) {
+                    $templatePath = $otherPath;
+                } else {
+                    // Catat kesalahan dengan informasi path detail
+                    \Log::error('File template tidak ditemukan di: ' . $templatePath);
+                    \Log::error('Path alternatif yang diperiksa: ' . $alternativePath);
+                    \Log::error('Path lain yang diperiksa: ' . $otherPath);
+                    
+                    return response()->json([
+                        'message' => 'File template tidak ditemukan. Silakan periksa path file di database.',
+                        'path_checked' => [
+                            'original' => $templatePath,
+                            'alternative' => $alternativePath,
+                            'other' => $otherPath
+                        ]
+                    ], 404);
+                }
+            }
+        }
+        
+        // Buat file temp dengan pemeriksaan direktori yang tepat
+        $tempDir = storage_path('app/temp');
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0755, true);
+        }
+        
+        $tempFile = $tempDir . '/temp_' . uniqid() . '.docx';
+        
+        try {
+            // Coba membuat template processor
+            $templateProcessor = new \PhpOffice\PhpWord\TemplateProcessor($templatePath);
+            
+            // Mengatur bahasa Indonesia untuk format tanggal
+            Carbon::setLocale('id');
+            setlocale(LC_TIME, 'id_ID.utf8', 'id_ID', 'Indonesia');
+            
+            // Membuat fungsi untuk mengubah nilai numerik menjadi teks dalam Bahasa Indonesia
+            $nilaiKeText = function($nilai) {
+                // Handle nilai khusus
+                if ($nilai == 0) return "NOL";
+                if ($nilai == 10) return "SEPULUH";
+                if ($nilai == 98) return "SEMBILAN PULUH DELAPAN";
+                if ($nilai == 100) return "SERATUS";
+                
+                // Untuk nilai standar 1-9
+                $penilaian = [
+                    1 => "SATU", 
+                    2 => "DUA", 
+                    3 => "TIGA", 
+                    4 => "EMPAT", 
+                    5 => "LIMA", 
+                    6 => "ENAM", 
+                    7 => "TUJUH", 
+                    8 => "DELAPAN", 
+                    9 => "SEMBILAN"
+                ];
+                
+                // Check apakah nilai ada di daftar
+                if (isset($penilaian[(int)$nilai])) {
+                    return $penilaian[(int)$nilai];
+                }
+                
+                // Jika tidak ada di daftar, tampilkan angka asli
+                return (string) $nilai;
+            };
+            
+            // Format tanggal dengan bahasa Indonesia (mengganti "March" menjadi "Maret", dll)
+            $formatTanggalIndonesia = function($tanggal) {
+                if (!$tanggal) return '-';
+                
+                $date = Carbon::parse($tanggal);
+                
+                $bulan = [
+                    'January' => 'Januari',
+                    'February' => 'Februari',
+                    'March' => 'Maret',
+                    'April' => 'April',
+                    'May' => 'Mei',
+                    'June' => 'Juni',
+                    'July' => 'Juli',
+                    'August' => 'Agustus',
+                    'September' => 'September',
+                    'October' => 'Oktober',
+                    'November' => 'November',
+                    'December' => 'Desember'
+                ];
+                
+                $tanggalFormatted = $date->format('d F Y');
+                
+                // Ganti nama bulan Inggris ke Indonesia
+                foreach ($bulan as $eng => $indo) {
+                    $tanggalFormatted = str_replace($eng, $indo, $tanggalFormatted);
+                }
+                
+                return $tanggalFormatted;
+            };
+            
+            // Ambil nama institusi dari database jika diperlukan
+            $nama_institusi = $peserta->nama_institusi;
+            
+            // Debug
+            \Log::info('Data Peserta:', [
+                'nama' => $peserta->nama,
+                'nomor_induk' => $peserta->nomor_induk,
+                'institusi' => $nama_institusi,
+                'nilai_teamwork' => $peserta->nilai_teamwork,
+                'nilai_komunikasi' => $peserta->nilai_komunikasi,
+                'nilai_kerjasama' => $peserta->nilai_kerjasama,
+                'nilai_kebersihan' => $peserta->nilai_kebersihan,
+                'nilai_kejujuran' => $peserta->nilai_kejujuran
+            ]);
+            
+            // Ganti placeholder dengan data aktual - sesuai format {placeholder}
+            $templateProcessor->setValue('{nama}', $peserta->nama);
+            $templateProcessor->setValue('{nomor_induk}', $peserta->nomor_induk ?? '-');
+            $templateProcessor->setValue('{institusi}', $nama_institusi ?? '-');
+            $templateProcessor->setValue('{tanggal_masuk}', $formatTanggalIndonesia($peserta->tanggal_masuk));
+            $templateProcessor->setValue('{tanggal_keluar}', $formatTanggalIndonesia($peserta->tanggal_keluar));
+            $templateProcessor->setValue('{jurusan}', $peserta->jenis_peserta == 'mahasiswa' ? 
+                                    ($peserta->jurusan_mahasiswa ?? '-') : 
+                                    ($peserta->jurusan_siswa ?? '-'));
+            
+            // Nomor dan tanggal naskah
+            $templateProcessor->setValue('{nomor_naskah}', 'SKT/' . date('Y') . '/' . $id_magang);
+            $templateProcessor->setValue('{tanggal_naskah}', $formatTanggalIndonesia(Carbon::now()));
+            $templateProcessor->setValue('{ttd_pengirim}', '');
+            
+            // JANGAN BATASI NILAI - gunakan nilai asli dari database
+            $nilai_teamwork = $peserta->nilai_teamwork ?? 0;
+            $nilai_komunikasi = $peserta->nilai_komunikasi ?? 0;
+            $nilai_pengambilan_keputusan = $peserta->nilai_pengambilan_keputusan ?? 0;
+            $nilai_kualitas_kerja = $peserta->nilai_kualitas_kerja ?? 0;
+            $nilai_teknologi = $peserta->nilai_teknologi ?? 0;
+            $nilai_disiplin = $peserta->nilai_disiplin ?? 0;
+            $nilai_tanggungjawab = $peserta->nilai_tanggungjawab ?? 0;
+            $nilai_kerjasama = $peserta->nilai_kerjasama ?? 0;
+            $nilai_kejujuran = $peserta->nilai_kejujuran ?? 0;
+            $nilai_kebersihan = $peserta->nilai_kebersihan ?? 0;
+            
+            // Hitung jumlah dan rata-rata
+            $nilai = [
+                $nilai_teamwork,
+                $nilai_komunikasi,
+                $nilai_pengambilan_keputusan,
+                $nilai_kualitas_kerja,
+                $nilai_teknologi,
+                $nilai_disiplin,
+                $nilai_tanggungjawab,
+                $nilai_kerjasama,
+                $nilai_kejujuran,
+                $nilai_kebersihan
+            ];
+            
+            $jumlah = array_sum($nilai);
+            $rata_rata = $jumlah / count($nilai);
+            
+            // Ganti nilai-nilai - gunakan format yang konsisten dengan 2 desimal
+            $templateProcessor->setValue('{nilai_teamwork}', number_format($nilai_teamwork, 2));
+            $templateProcessor->setValue('{nilai_komunikasi}', number_format($nilai_komunikasi, 2));
+            $templateProcessor->setValue('{nilai_pengambilan_keputusan}', number_format($nilai_pengambilan_keputusan, 2));
+            $templateProcessor->setValue('{nilai_kualitas_kerja}', number_format($nilai_kualitas_kerja, 2));
+            $templateProcessor->setValue('{nilai_teknologi}', number_format($nilai_teknologi, 2));
+            $templateProcessor->setValue('{nilai_disiplin}', number_format($nilai_disiplin, 2));
+            $templateProcessor->setValue('{nilai_tanggungjawab}', number_format($nilai_tanggungjawab, 2));
+            $templateProcessor->setValue('{nilai_kerjasama}', number_format($nilai_kerjasama, 2));
+            $templateProcessor->setValue('{nilai_kejujuran}', number_format($nilai_kejujuran, 2));
+            $templateProcessor->setValue('{nilai_kebersihan}', number_format($nilai_kebersihan, 2));
+            
+            // Nilai dalam bentuk teks
+            $templateProcessor->setValue('{nilai_teamwork_teks}', $nilaiKeText($nilai_teamwork));
+            $templateProcessor->setValue('{nilai_komunikasi_teks}', $nilaiKeText($nilai_komunikasi));
+            $templateProcessor->setValue('{nilai_pengambilan_keputusan_teks}', $nilaiKeText($nilai_pengambilan_keputusan));
+            $templateProcessor->setValue('{nilai_kualitas_kerja_teks}', $nilaiKeText($nilai_kualitas_kerja));
+            $templateProcessor->setValue('{nilai_teknologi_teks}', $nilaiKeText($nilai_teknologi));
+            $templateProcessor->setValue('{nilai_disiplin_teks}', $nilaiKeText($nilai_disiplin));
+            $templateProcessor->setValue('{nilai_tanggungjawab_teks}', $nilaiKeText($nilai_tanggungjawab));
+            $templateProcessor->setValue('{nilai_kerjasama_teks}', $nilaiKeText($nilai_kerjasama));
+            $templateProcessor->setValue('{nilai_kejujuran_teks}', $nilaiKeText($nilai_kejujuran));
+            $templateProcessor->setValue('{nilai_kebersihan_teks}', $nilaiKeText($nilai_kebersihan));
+            
+            // Jumlah dan rata-rata
+            $templateProcessor->setValue('{jumlah}', number_format($jumlah, 2));
+            $templateProcessor->setValue('{jumlah_teks}', number_format($jumlah, 2));
+            $templateProcessor->setValue('{rata_rata}', number_format($rata_rata, 2));
+            $templateProcessor->setValue('{rata_rata_teks}', number_format($rata_rata, 2));
+            
+            // Nilai akreditasi berdasarkan rata-rata
+            $akreditasi = "";
+            if ($rata_rata >= 85) {
+                $akreditasi = "Sangat Memuaskan";
+            } elseif ($rata_rata >= 75) {
+                $akreditasi = "Memuaskan";
+            } elseif ($rata_rata >= 60) {
+                $akreditasi = "Cukup";
+            } else {
+                $akreditasi = "Kurang";
+            }
+            $templateProcessor->setValue('{akreditasi}', $akreditasi);
+            
+            // Simpan dokumen yang sudah diproses
+            $templateProcessor->saveAs($tempFile);
+            
+            // Periksa ketersediaan LibreOffice untuk konversi PDF
+            $libreOfficeAvailable = function_exists('exec') && !in_array('exec', explode(',', ini_get('disable_functions')));
+            
+            if ($libreOfficeAvailable) {
+                try {
+                    // Tentukan path output PDF
+                    $pdfFile = $tempDir . '/sertifikat-' . Str::slug($peserta->nama) . '.pdf';
+                    
+                    // Konversi DOCX ke PDF menggunakan LibreOffice
+                    $command = 'libreoffice --headless --convert-to pdf --outdir ' . escapeshellarg($tempDir) . ' ' . escapeshellarg($tempFile);
+                    $output = [];
+                    $returnVar = 0;
+                    
+                    exec($command, $output, $returnVar);
+                    
+                    // Periksa apakah konversi berhasil
+                    $conversionPdfFile = str_replace('.docx', '.pdf', $tempFile);
+                    
+                    if (file_exists($conversionPdfFile)) {
+                        // Rename file jika perlu
+                        if ($conversionPdfFile != $pdfFile) {
+                            rename($conversionPdfFile, $pdfFile);
+                        }
+                        
+                        // Kirim file PDF
+                        $response = response(file_get_contents($pdfFile), 200, [
+                            'Content-Type' => 'application/pdf',
+                            'Content-Disposition' => 'attachment; filename="sertifikat-' . Str::slug($peserta->nama) . '.pdf"'
+                        ]);
+                        
+                        // Bersihkan file temporary
+                        @unlink($tempFile);
+                        @unlink($pdfFile);
+                        
+                        return $response;
+                    } else {
+                        // Catat upaya konversi yang gagal
+                        \Log::error('Konversi PDF gagal. Command: ' . $command);
+                        \Log::error('Output: ' . implode(", ", $output));
+                        \Log::error('Return code: ' . $returnVar);
+                        
+                        // Fallback ke DOCX jika konversi gagal
+                        throw new \Exception('Konversi ke PDF gagal.');
+                    }
+                } catch (\Exception $pdfException) {
+                    \Log::error('PDF conversion exception: ' . $pdfException->getMessage());
+                    // Lanjutkan ke fallback DOCX
+                }
+            }
+            
+            // Fallback: Kembalikan file DOCX jika PDF gagal atau LibreOffice tidak tersedia
+            $filename = 'sertifikat-' . Str::slug($peserta->nama) . '.docx';
+            $response = response(file_get_contents($tempFile), 200, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"'
+            ]);
+            
+            // Bersihkan
+            @unlink($tempFile);
+            
+            return $response;
+            
+        } catch (\PhpOffice\PhpWord\Exception\Exception $e) {
+            \Log::error('PHPWord Exception: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error saat memproses template: ' . $e->getMessage()
+            ], 500);
+        }
+        
+    } catch (\Exception $error) {
+        \Log::error('Error generating certificate: ' . $error->getMessage());
+        \Log::error('Error trace: ' . $error->getTraceAsString());
+        return response()->json([
+            'message' => 'Terjadi kesalahan server: ' . $error->getMessage(),
+            'trace' => config('app.debug') ? $error->getTraceAsString() : null
+        ], 500);
     }
+}
 
     public function getHistoryScores(Request $request)
 {
@@ -656,6 +961,51 @@ class AssessmentController extends Controller
         ], 500)->header('Content-Type', 'application/json');
     }  
     
+}
+
+public function editPage($id)
+{
+    try {
+        // Cek apakah penilaian ada berdasarkan id_magang
+        $assessment = DB::select("
+            SELECT p.*, pm.nama, pm.jenis_peserta, pm.tanggal_masuk, pm.tanggal_keluar
+            FROM penilaian p
+            JOIN peserta_magang pm ON p.id_magang = pm.id_magang
+            WHERE p.id_magang = ?
+        ", [$id]);
+        
+        if (empty($assessment)) {
+            // Coba cari berdasarkan id_penilaian jika tidak ditemukan berdasarkan id_magang
+            $assessment = DB::select("
+                SELECT p.*, pm.nama, pm.jenis_peserta, pm.tanggal_masuk, pm.tanggal_keluar
+                FROM penilaian p
+                JOIN peserta_magang pm ON p.id_magang = pm.id_magang
+                WHERE p.id_penilaian = ?
+            ", [$id]);
+            
+            if (empty($assessment)) {
+                return redirect()->route('history.scores')
+                    ->with('error', 'Data penilaian tidak ditemukan');
+            }
+        }
+        
+        // Log untuk debugging
+        \Log::info('Assessment data found:', ['data' => $assessment[0]]);
+        
+        // Jika menggunakan halaman terpisah (tidak direkomendasikan karena sudah pakai modal)
+        // return view('assessment.edit', ['id_magang' => $id, 'assessment' => $assessment[0]]);
+        
+        // Redirect kembali ke halaman scores dengan flash data
+        return redirect()->route('history.scores')
+            ->with('edit_data', json_encode($assessment[0]));
+        
+    } catch (\Exception $error) {
+        \Log::error('Error accessing edit page: ' . $error->getMessage());
+        \Log::error('Stack trace: ' . $error->getTraceAsString());
+        
+        return redirect()->route('history.scores')
+            ->with('error', 'Terjadi kesalahan saat mengakses halaman edit: ' . $error->getMessage());
+    }
 }
 
 public function scoresIndex()

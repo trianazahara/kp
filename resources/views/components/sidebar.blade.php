@@ -63,7 +63,7 @@
                 <a href="{{ route('history.data') }}" class="block p-2 rounded-xl transform transition-all duration-500 hover:translate-x-2 relative hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 hover:shadow-md active:scale-95 {{ request()->routeIs('history.data') ? 'bg-gradient-to-r from-green-200 to-emerald-100 shadow-md scale-105' : '' }}">
                     Riwayat Data
                 </a>
-                <a href="{{ route('rekap-nilai.index') }}" class="block p-2 rounded-xl transform transition-all duration-500 hover:translate-x-2 relative hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 hover:shadow-md active:scale-95 {{ request()->routeIs('history.scores') ? 'bg-gradient-to-r from-green-200 to-emerald-100 shadow-md scale-105' : '' }}">
+                <a href="{{ route('history.scores') }}" class="block p-2 rounded-xl transform transition-all duration-500 hover:translate-x-2 relative hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 hover:shadow-md active:scale-95 {{ request()->routeIs('history.scores') ? 'bg-gradient-to-r from-green-200 to-emerald-100 shadow-md scale-105' : '' }}">
                     Rekap Nilai
                 </a>
             </div>

@@ -24,6 +24,15 @@ use App\Http\Controllers\AuthController;
 // Public API routes
 Route::post('/login', [AuthController::class, 'apiLogin']);
 Route::get('/interns/check-availability', [InternController::class, 'checkAvailability']);
+Route::get('/documents/certificates/{filename}', [DocumentController::class, 'viewCertificate']);
+Route::get('/documents/templates/{filename}', [DocumentController::class, 'viewTemplate']);
+
+// PENTING: Definisikan rute yang sesuai dengan JavaScript Anda
+// Rute untuk assessments diluar middleware saja agar bisa diakses
+Route::get('/assessments/intern/{id_magang}', [AssessmentController::class, 'getByInternId']);
+Route::put('/assessments/update-nilai/{id}', [AssessmentController::class, 'updateScore']);
+Route::get('/history/scores', [AssessmentController::class, 'getHistoryScores']);
+Route::get('/assessments/certificate/{id_magang}', [AssessmentController::class, 'generateCertificate']);
 
 // API routes that use traditional web auth (session based)
 Route::middleware('auth')->group(function () {
@@ -55,16 +64,14 @@ Route::middleware('auth')->group(function () {
         });
     });
     
-    // Assessment routes
+    // Assessment routes - Tetap dipertahankan di dalam auth untuk backward compatibility
     Route::prefix('assessments')->group(function () {
         Route::get('/rekap-nilai', [AssessmentController::class, 'getRekapNilai']);
-        Route::get('/intern/{id_magang}', [AssessmentController::class, 'getByInternId']);
-        Route::get('/certificate/{id_magang}', [AssessmentController::class, 'generateCertificate']);
+        // Route::get('/certificate/{id_magang}', [AssessmentController::class, 'generateCertificate']);
         
         // Routes restricted to superadmin and admin roles
         Route::middleware('role:superadmin,admin')->group(function () {
             Route::post('/add-score/{id}', [AssessmentController::class, 'addScore']);
-            Route::put('/update-nilai/{id}', [AssessmentController::class, 'updateScore']);
         });
     });
 
@@ -86,12 +93,7 @@ Route::middleware('auth')->group(function () {
     });
 });
 
-// Public routes
-Route::get('/interns/check-availability', [InternController::class, 'checkAvailability']);
-Route::get('/documents/certificates/{filename}', [DocumentController::class, 'viewCertificate']);
-Route::get('/documents/templates/{filename}', [DocumentController::class, 'viewTemplate']);
-
-// Web routes (bukan API) untuk sub-menu
+// Web routes (bukan API) untuk sub-menu, sebaiknya pindahkan ke web.php
 Route::middleware(['auth', 'web'])->group(function () {
     // Untuk submenu Data Magang
     Route::get('/interns/management', [InternController::class, 'managementIndex'])->name('interns.management');
@@ -100,5 +102,4 @@ Route::middleware(['auth', 'web'])->group(function () {
     // Untuk submenu Riwayat
     Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
     Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');
-    Route::get('/history/scores', [App\Http\Controllers\AssessmentController::class, 'getHistoryScores']);
 });
