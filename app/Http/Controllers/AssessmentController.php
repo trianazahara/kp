@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\Validator;
 
 class AssessmentController extends Controller
 {
+    public function index()
+    {
+        return view('interns.rekap-nilai');
+    }
+
     // Fungsi untuk membuat notifikasi ke seluruh user saat ada perubahan nilai
     private function createInternNotification($userId, $internName, $action)
     {

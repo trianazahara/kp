@@ -15,8 +15,8 @@ class User extends Authenticatable
     protected $keyType = 'string';
 
     protected $fillable = [
-        'username', 'password', 'email', 'nama', 'role', 
-        'profile_picture', 'is_active', 'nip', 'id_bidang'
+        'id_users', 'username', 'password', 'email', 'nama', 'role', 
+        'profile_picture', 'is_active', 'nip', 'id_bidang', 'created_at', 'updated_at'
     ];
 
     protected $hidden = [

@@ -93,6 +93,8 @@ Route::middleware('auth')->group(function () {
      Route::get('/history/data', [App\Http\Controllers\InternController::class, 'historyDataIndex'])->name('history.data');
      Route::get('/history/scores', [App\Http\Controllers\AssessmentController::class, 'scoresIndex'])->name('history.scores');
 
+     Route::get('/rekap-nilai', [App\Http\Controllers\AssessmentController::class, 'index'])->name('rekap-nilai.index');
+    
     // Template routes
     Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings/update-profile', [App\Http\Controllers\SettingsController::class, 'updateProfile'])->name('settings.update-profile');
@@ -115,5 +117,4 @@ Route::middleware(['auth'])->group(function () {
 });
 
 Route::middleware(['auth', 'role:superadmin'])->group(function () {
-    Route::get('/admin', [App\Http\Controllers\AdminController::class, 'index'])->name('admin.index');
-});
+    });

@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Bidang;
 use App\Models\PesertaMagang;
-use App\Models\Notifikasi;
+use App\Models\Notification;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -23,12 +23,14 @@ class AdminController extends Controller
     public function index()
     {
         $admins = User::where('role', 'admin')
-            ->leftJoin('bidang', 'users.id_bidang', '=', 'bidang.id_bidang')
-            ->select('users.*', 'bidang.nama_bidang')
-            ->orderBy('users.created_at', 'desc')
-            ->get();
+        ->leftJoin('bidang', 'users.id_bidang', '=', 'bidang.id_bidang')
+        ->select('users.*', 'bidang.nama_bidang')
+        ->orderBy('users.created_at', 'desc')
+        ->get();
+    
+    $bidangList = \App\Models\Bidang::all();
 
-        return view('admin.index', compact('admins'));
+    return view('admin.index', compact('admins', 'bidangList'));
     }
 
     /**
@@ -43,30 +45,35 @@ class AdminController extends Controller
     }
 
     /**
-     * Store a newly created admin in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'username' => 'required|string|unique:users',
-            'password' => 'required|string|min:6',
-            'email' => 'required|string|email|unique:users',
-            'nama' => 'required|string',
-            'nip' => 'nullable|string',
-            'id_bidang' => 'required|exists:bidang,id_bidang',
-            'role' => 'required|in:admin,superadmin',
-        ]);
+ * Store a newly created admin in storage.
+ *
+ * @param  \Illuminate\Http\Request  $request
+ * @return \Illuminate\Http\Response
+ */
+public function store(Request $request)
+{
+    \Log::info('Admin store method called with data:', $request->all());
+    
+    $validator = Validator::make($request->all(), [
+        'username' => 'required|string|unique:users',
+        'password' => 'required|string|min:6',
+        'email' => 'required|string|email|unique:users',
+        'nama' => 'required|string',
+        'nip' => 'nullable|string',
+        'id_bidang' => 'required|exists:bidang,id_bidang',
+        'role' => 'required|in:admin,superadmin',
+    ]);
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
+    if ($validator->fails()) {
+        \Log::warning('Validation failed: ', $validator->errors()->toArray());
+        return redirect()->back()
+            ->withErrors($validator)
+            ->withInput();
+    }
 
-        // Create new admin user
+    // Create new admin user
+    try {
+        \Log::info('Creating new admin user');
         User::create([
             'id_users' => Str::uuid(),
             'username' => $request->username,
@@ -79,10 +86,21 @@ class AdminController extends Controller
             'is_active' => true,
             'created_at' => Carbon::now()
         ]);
+        \Log::info('Admin created successfully');
 
         return redirect()->route('admin.index')
             ->with('success', 'Admin berhasil ditambahkan.');
+    } catch (\Exception $e) {
+        // Log error
+        \Log::error('Error adding admin: ' . $e->getMessage());
+        \Log::error('Stack trace: ' . $e->getTraceAsString());
+        
+        // Return with error message
+        return redirect()->back()
+            ->with('error', 'Terjadi kesalahan saat menambahkan admin: ' . $e->getMessage())
+            ->withInput();
     }
+}
 
     /**
      * Show the form for editing the specified admin.
@@ -172,7 +190,7 @@ class AdminController extends Controller
             PesertaMagang::where('mentor_id', $id)->update(['mentor_id' => null]);
             
             // Delete admin's notifications
-            Notifikasi::where('user_id', $id)->delete();
+            Notification::where('user_id', $id)->delete();
             
             // Reset created_by for related interns
             PesertaMagang::where('created_by', $id)->update(['created_by' => null]);
@@ -385,7 +403,7 @@ class AdminController extends Controller
             PesertaMagang::where('mentor_id', $id)->update(['mentor_id' => null]);
             
             // Delete admin's notifications
-            Notifikasi::where('user_id', $id)->delete();
+            Notification::where('user_id', $id)->delete();
             
             // Reset created_by for related interns
             PesertaMagang::where('created_by', $id)->update(['created_by' => null]);
