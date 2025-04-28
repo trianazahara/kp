@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AssessmentController;
 
 Route::get('/test', function () {
     return 'Aplikasi bekerja dengan baik!';
@@ -72,6 +73,9 @@ Route::prefix('api')->group(function () {
     Route::get('/interns/mentors', [App\Http\Controllers\InternController::class, 'getMentors'])->name('api.interns.getMentors');
     Route::get('/interns/completing-soon', [App\Http\Controllers\InternController::class, 'getCompletingSoon'])->name('api.interns.getCompletingSoon');
     Route::get('/interns/history', [App\Http\Controllers\InternController::class, 'getHistory'])->name('api.interns.getHistory');
+    Route::get('/history/scores', [App\Http\Controllers\AssessmentController::class, 'getHistoryScores']);
+    // Route::get('/dashboard/rekap-nilai', [App\Http\Controllers\AssessmentController::class, 'rekapNilaiIndex'])->name('assessment.rekap-nilai');
+    
    });
 // Protected routes
 Route::middleware('auth')->group(function () {
@@ -85,8 +89,9 @@ Route::middleware('auth')->group(function () {
      Route::post('/settings/upload-photo', [App\Http\Controllers\SettingsController::class, 'uploadProfilePicture'])->name('settings.upload-photo');
      Route::delete('/settings/delete-photo', [App\Http\Controllers\SettingsController::class, 'deletePhoto'])->name('settings.delete-photo');
      Route::post('/settings/change-password', [App\Http\Controllers\SettingsController::class, 'changePassword'])->name('settings.change-password');
- 
+     Route::post('/assessments/add-score/{id}', [AssessmentController::class, 'addScore'])->name('assessments.add-score');
      Route::get('/history/data', [App\Http\Controllers\InternController::class, 'historyDataIndex'])->name('history.data');
+     Route::get('/history/scores', [App\Http\Controllers\AssessmentController::class, 'scoresIndex'])->name('history.scores');
 
     // Template routes
     Route::get('/settings', [App\Http\Controllers\SettingsController::class, 'index'])->name('settings.index');

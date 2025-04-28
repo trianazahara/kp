@@ -320,7 +320,7 @@
                 const endDate = this.getAttribute('data-end');
                 
                 // Set form action URL
-                scoreForm.action = `/api/assessments/add-score/${internId}`;
+                scoreForm.action = `/assessments/add-score/${internId}`;
                 
                 // Set intern name in modal title
                 internName.textContent = name;
@@ -338,45 +338,70 @@
         });
         
         // Handle form submission
-        scoreForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = {};
-            
-            // Convert FormData to JSON object
-            for (const [key, value] of formData.entries()) {
-                data[key] = Number(value);
-            }
-            
-            // Send data using fetch
-            fetch(this.action, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                },
-                body: JSON.stringify(data)
-            })
-            .then(response => response.json())
-            .then(result => {
-                if (result.status === 'success') {
-                    showToast('Nilai berhasil disimpan');
-                    modal.classList.add('hidden');
-                    
-                    // Reload page after successful submission
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
-                } else {
-                    showToast(result.message || 'Terjadi kesalahan', false);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Terjadi kesalahan pada server', false);
+        // Handle form submission
+scoreForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // Tampilkan indikator loading
+    const submitButton = this.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton.innerHTML;
+    submitButton.innerHTML = 'Menyimpan...';
+    submitButton.disabled = true;
+    
+    const formData = new FormData(this);
+    const data = {};
+    
+    // Convert FormData to JSON object
+    for (const [key, value] of formData.entries()) {
+        data[key] = Number(value);
+    }
+    
+    console.log('Mengirim data:', data);
+    console.log('URL:', this.action);
+    
+    // Send data using fetch
+    fetch(this.action, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                console.error('Server error:', err);
+                throw new Error(err.message || 'Terjadi kesalahan pada server');
             });
-        });
+        }
+        return response.json();
+    })
+    .then(result => {
+        console.log('Server response:', result);
+        if (result.status === 'success') {
+            showToast('Nilai berhasil disimpan');
+            modal.classList.add('hidden');
+            
+            // Reload page after successful submission
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showToast(result.message || 'Terjadi kesalahan', false);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast(error.message || 'Terjadi kesalahan pada server', false);
+    })
+    .finally(() => {
+        // Kembalikan button ke kondisi awal
+        submitButton.innerHTML = originalButtonText;
+        submitButton.disabled = false;
+    });
+});
     });
 </script>
 @endsection

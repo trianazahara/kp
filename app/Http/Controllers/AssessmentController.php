@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Http\Controllers\NotificationController;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Validator;
+
+
 
 class AssessmentController extends Controller
 {
@@ -50,10 +53,16 @@ class AssessmentController extends Controller
         }
     }
 
+
     // Tambah nilai baru untuk peserta magang
-    public function addScore(Request $request)
+    public function addScore(Request $request, $id)
     {
         try {
+            \Log::info('=== ADD SCORE DEBUG ===');
+            \Log::info('ID dari URL: ' . $id);
+            \Log::info('Request data: ' . json_encode($request->all()));
+            \Log::info('Content-Type: ' . $request->header('Content-Type'));
+    
             // Cek autentikasi user
             if (!auth()->check()) {
                 return response()->json([
@@ -61,14 +70,21 @@ class AssessmentController extends Controller
                     'message' => 'Unauthorized: User authentication required'
                 ], 401);
             }
-
+    
             DB::beginTransaction();
-
+    
             $userId = auth()->id();
             
-            // Validasi request
-            $validated = $request->validate([
-                'id_magang' => 'required',
+            // Validasi request - pastikan ini bisa menangani JSON
+            $data = $request->json()->all();
+            if (empty($data)) {
+                $data = $request->all(); // fallback ke form biasa jika bukan JSON
+            }
+            
+            \Log::info('Data setelah parsing: ' . json_encode($data));
+            
+            // Validasi data
+            $validator = Validator::make($data, [
                 'nilai_teamwork' => 'required|numeric',
                 'nilai_komunikasi' => 'required|numeric',
                 'nilai_pengambilan_keputusan' => 'required|numeric',
@@ -81,37 +97,45 @@ class AssessmentController extends Controller
                 'nilai_kebersihan' => 'required|numeric',
                 'jumlah_hadir' => 'required|numeric',
             ]);
-
-            $id_magang = $request->id_magang;
-
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validasi gagal',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+    
+            $id_magang = $id; // Ambil ID dari parameter URL, bukan dari body
+    
             // Cek keberadaan peserta
             $pesertaExists = DB::select(
                 'SELECT nama FROM peserta_magang WHERE id_magang = ?',
                 [$id_magang]
             );
-
+    
             if (empty($pesertaExists)) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Data peserta magang tidak ditemukan'
                 ], 404);
             }
-
+    
             // Cek duplikasi penilaian
             $existingScore = DB::select(
                 'SELECT id_penilaian FROM penilaian WHERE id_magang = ?',
                 [$id_magang]
             );
-
+    
             if (!empty($existingScore)) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Penilaian untuk peserta ini sudah ada'
                 ], 400);
             }
-
+    
             $id_penilaian = Str::uuid()->toString();
-
+    
             // Insert data penilaian baru
             DB::insert("
                 INSERT INTO penilaian (
@@ -136,20 +160,20 @@ class AssessmentController extends Controller
                 $id_penilaian,
                 $id_magang,
                 $userId,
-                $request->nilai_teamwork ?? 0,
-                $request->nilai_komunikasi ?? 0,
-                $request->nilai_pengambilan_keputusan ?? 0,
-                $request->nilai_kualitas_kerja ?? 0,
-                $request->nilai_teknologi ?? 0,
-                $request->nilai_disiplin ?? 0,
-                $request->nilai_tanggungjawab ?? 0,
-                $request->nilai_kerjasama ?? 0,
-                $request->nilai_kejujuran ?? 0,
-                $request->nilai_kebersihan ?? 0,
-                $request->jumlah_hadir ?? 0,  
+                $data['nilai_teamwork'] ?? 0,
+                $data['nilai_komunikasi'] ?? 0,
+                $data['nilai_pengambilan_keputusan'] ?? 0,
+                $data['nilai_kualitas_kerja'] ?? 0,
+                $data['nilai_teknologi'] ?? 0,
+                $data['nilai_disiplin'] ?? 0,
+                $data['nilai_tanggungjawab'] ?? 0,
+                $data['nilai_kerjasama'] ?? 0,
+                $data['nilai_kejujuran'] ?? 0,
+                $data['nilai_kebersihan'] ?? 0,
+                $data['jumlah_hadir'] ?? 0,  
                 $userId
             ]);
-
+    
             // Update status peserta jadi selesai
             DB::update("
                 UPDATE peserta_magang
@@ -158,16 +182,16 @@ class AssessmentController extends Controller
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id_magang = ?
             ", [$userId, $id_magang]);
-
+    
             // Buat notifikasi penilaian baru
             $this->createInternNotification(
                 $userId,
                 $pesertaExists[0]->nama,
                 'menambahkan'
             );
-
+    
             DB::commit();
-
+    
             return response()->json([
                 'status' => 'success',
                 'message' => 'Penilaian berhasil disimpan',
@@ -178,13 +202,14 @@ class AssessmentController extends Controller
                     'created_at' => now()->toISOString()
                 ]
             ], 201);
-
+    
         } catch (\Exception $error) {
             DB::rollback();
             \Log::error('Error creating assessment: ' . $error->getMessage());
+            \Log::error('Stack trace: ' . $error->getTraceAsString());
             return response()->json([
                 'status' => 'error',
-                'message' => 'Terjadi kesalahan server',
+                'message' => 'Terjadi kesalahan server: ' . $error->getMessage(),
                 'error' => config('app.debug') ? $error->getMessage() : null
             ], 500);
         }
@@ -346,6 +371,7 @@ class AssessmentController extends Controller
             ], 500);
         }
     }
+
 
     // Update nilai peserta magang
     public function updateScore(Request $request, $id)
@@ -549,4 +575,143 @@ class AssessmentController extends Controller
             return response()->json(['message' => 'Terjadi kesalahan server'], 500);
         }
     }
+
+    public function getHistoryScores(Request $request)
+{
+    try {
+        \Log::info('API getHistoryScores dipanggil', [
+            'request' => $request->all()
+        ]);
+        
+        // Ambil parameter
+        $search = $request->input('search', '');
+        $bidang = $request->input('bidang', '');
+        
+        \Log::info('Parameter:', [
+            'search' => $search,
+            'bidang' => $bidang
+        ]);
+        
+        // Query database
+        $query = DB::table('penilaian as p')
+            ->join('peserta_magang as pm', 'p.id_magang', '=', 'pm.id_magang')
+            ->leftJoin('bidang as b', 'pm.id_bidang', '=', 'b.id_bidang')
+            ->select(
+                'pm.id_magang',
+                'pm.nama',
+                'pm.nama_institusi',
+                'b.nama_bidang',
+                'pm.tanggal_masuk',
+                'pm.tanggal_keluar',
+                'p.nilai_teamwork',
+                'p.nilai_komunikasi',
+                'p.nilai_pengambilan_keputusan',
+                'p.nilai_kualitas_kerja',
+                'p.nilai_teknologi',
+                'p.nilai_disiplin',
+                'p.nilai_tanggungjawab',
+                'p.nilai_kerjasama',
+                'p.nilai_kejujuran',
+                'p.nilai_kebersihan'
+            );
+        
+        // Filter pencarian
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('pm.nama', 'like', '%' . $search . '%')
+                  ->orWhere('pm.nama_institusi', 'like', '%' . $search . '%');
+            });
+        }
+        
+        // Filter bidang
+        if (!empty($bidang)) {
+            $query->where('pm.id_bidang', $bidang);
+        }
+        
+        // Dapatkan data
+        $data = $query->orderBy('p.created_at', 'desc')->get();
+        
+        \Log::info('Query berhasil, jumlah data:', ['count' => count($data)]);
+        
+        // Return data dalam format JSON dengan header yang benar
+        return response()->json([
+            'status' => 'success',
+            'data' => $data
+        ])->header('Content-Type', 'application/json');
+        
+    } catch (\Exception $e) {
+        \Log::error('Error di getHistoryScores:', [
+            'message' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+        ], 500)->header('Content-Type', 'application/json');
+    }  
+    
+}
+
+public function scoresIndex()
+{
+    try {
+        \Log::info('Memasuki method scoresIndex');
+        
+        // Ambil data bidang untuk filter
+        try {
+            $bidang = DB::select('SELECT id_bidang, nama_bidang FROM bidang ORDER BY nama_bidang');
+            \Log::info('Berhasil mengambil data bidang', ['count' => count($bidang)]);
+        } catch (\Exception $e) {
+            \Log::error('Error query bidang: ' . $e->getMessage());
+            $bidang = [];
+        }
+        
+        // Ambil data awal (10 data terbaru) - ini akan memberikan data awal tanpa perlu AJAX
+        try {
+            $initialData = DB::table('penilaian as p')
+                ->leftJoin('peserta_magang as pm', 'p.id_magang', '=', 'pm.id_magang')
+                ->leftJoin('bidang as b', 'pm.id_bidang', '=', 'b.id_bidang')
+                ->select(
+                    'pm.id_magang',
+                    'pm.nama',
+                    'pm.nama_institusi',
+                    'b.nama_bidang',
+                    'pm.tanggal_masuk',
+                    'pm.tanggal_keluar',
+                    'p.nilai_teamwork',
+                    'p.nilai_komunikasi',
+                    'p.nilai_pengambilan_keputusan',
+                    'p.nilai_kualitas_kerja',
+                    'p.nilai_teknologi',
+                    'p.nilai_disiplin',
+                    'p.nilai_tanggungjawab',
+                    'p.nilai_kerjasama',
+                    'p.nilai_kejujuran',
+                    'p.nilai_kebersihan'
+                )
+                ->orderBy('p.created_at', 'desc')
+                ->limit(10)
+                ->get();
+            
+            \Log::info('Berhasil mengambil data awal', ['count' => count($initialData)]);
+        } catch (\Exception $e) {
+            \Log::error('Error query data awal: ' . $e->getMessage());
+            $initialData = [];
+        }
+        
+        // Return view dengan data awal
+        return view('history.scores', [
+            'bidang' => $bidang,
+            'initialData' => $initialData
+        ]);
+        
+    } catch (\Exception $error) {
+        \Log::error('Error di scoresIndex: ' . $error->getMessage());
+        \Log::error('Stack trace: ' . $error->getTraceAsString());
+        
+        return redirect()->route('dashboard')
+            ->with('error', 'Terjadi kesalahan saat memuat halaman rekap nilai');
+    }
+}
 }

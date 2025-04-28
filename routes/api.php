@@ -127,4 +127,5 @@ Route::middleware(['auth', 'web'])->group(function () {
     // Untuk submenu Riwayat
     Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
     Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');
+    Route::get('/history/scores', [App\Http\Controllers\AssessmentController::class, 'getHistoryScores']);
 });
