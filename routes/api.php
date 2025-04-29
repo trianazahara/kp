@@ -76,11 +76,11 @@ Route::middleware('auth')->group(function () {
     });
 
     // Notification routes
-    Route::prefix('notifications')->group(function () {
-        Route::get('/', [NotificationController::class, 'getNotifications']);
-        Route::get('/unread-count', [NotificationController::class, 'getUnreadCount']);
-        Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
-        Route::put('/mark-all-read', [NotificationController::class, 'markAllAsRead']);
+    Route::prefix('notifications')->group(function() {
+        Route::get('/', [App\Http\Controllers\NotificationController::class, 'getNotifications']);
+        Route::get('/unread-count', [App\Http\Controllers\NotificationController::class, 'getUnreadCount']);
+        Route::put('/{id}/mark-as-read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+        Route::put('/mark-all-as-read', [App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
     });
     
     // Settings routes

@@ -1,7 +1,41 @@
 <?php
-// Inisialisasi variabel dengan nilai default jika tidak ada
-$notificationCount = $notificationCount ?? 0;
-$notifications = $notifications ?? [];
+// resources/views/layouts/partials/header.blade.php
+
+// Fetch notifications from the controller
+$notificationCount = 0;
+$notifications = [];
+
+// Try to get notifications data if user is authenticated
+if (auth()->check()) {
+    try {
+        // Get unread notification count
+        $unreadCountResponse = app(App\Http\Controllers\NotificationController::class)
+            ->getUnreadCount(request());
+            
+        if ($unreadCountResponse->getStatusCode() == 200) {
+            $responseData = json_decode($unreadCountResponse->getContent());
+            if ($responseData && isset($responseData->count)) {
+                $notificationCount = $responseData->count;
+            }
+        }
+        
+        // Get latest notifications (limit to 5 for dropdown)
+        $request = new Illuminate\Http\Request();
+        $request->merge(['limit' => 5]);
+        $notificationsResponse = app(App\Http\Controllers\NotificationController::class)
+            ->getNotifications($request);
+            
+        if ($notificationsResponse->getStatusCode() == 200) {
+            $responseData = json_decode($notificationsResponse->getContent());
+            if ($responseData && isset($responseData->data)) {
+                $notifications = $responseData->data;
+            }
+        }
+    } catch (\Exception $e) {
+        \Log::error('Error fetching notifications for header: ' . $e->getMessage());
+        // Silently fail - use default empty values
+    }
+}
 ?>
 
 <header class="fixed top-0 right-0 left-64 bg-white border-b z-10">
@@ -15,11 +49,9 @@ $notifications = $notifications ?? [];
                     onclick="toggleNotificationDropdown()"
                 >
                     <i class="fas fa-bell text-lg"></i>
-                    @if($notificationCount > 0)
-                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center {{ $notificationCount > 0 ? '' : 'hidden' }}">
                         {{ $notificationCount > 9 ? '9+' : $notificationCount }}
                     </span>
-                    @endif
                 </button>
 
                 <!-- Notification Dropdown Menu -->
@@ -27,33 +59,35 @@ $notifications = $notifications ?? [];
                     <div class="px-4 py-2 border-b border-gray-200">
                         <h3 class="text-lg font-semibold">Notifikasi</h3>
                     </div>
-                    <div class="max-h-96 overflow-y-auto">
+                    <div class="max-h-96 overflow-y-auto" id="notification-container">
                         @if(count($notifications) === 0)
-                        <div class="p-4 text-center text-gray-500">
+                        <div class="p-4 text-center text-gray-500" id="empty-notification">
                             Tidak ada notifikasi
                         </div>
                         @else
                         @foreach($notifications as $notification)
                         <a
-                            href="{{ route('notifications.show', $notification->id_notifikasi) }}"
+                            href="javascript:void(0);"
+                            onclick="markAsRead('{{ $notification->id_notifikasi }}')"
                             class="block p-4 border-b border-gray-100 hover:bg-gray-50 {{ $notification->dibaca ? '' : 'bg-blue-50' }}"
                         >
                             <div class="font-semibold">{{ $notification->judul }}</div>
                             <div class="text-sm text-gray-600">{{ $notification->pesan }}</div>
                             <div class="text-xs text-gray-400 mt-1">
-                                {{ \Carbon\Carbon::parse($notification->created_at)->toLocaleString('id-ID') }}
+                                {{ \Carbon\Carbon::parse($notification->created_at)->diffForHumans() }}
                             </div>
                         </a>
                         @endforeach
                         @endif
                     </div>
-                    @if(count($notifications) > 0)
                     <div class="p-2 text-center border-t border-gray-200">
+                        <a href="javascript:void(0);" onclick="markAllAsRead()" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-4">
+                            Tandai Semua Dibaca
+                        </a>
                         <a href="{{ route('notifications.index') }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                            Lihat Semua Notifikasi
+                            Lihat Semua
                         </a>
                     </div>
-                    @endif
                 </div>
             </div>
 
@@ -115,9 +149,122 @@ $notifications = $notifications ?? [];
         const notificationMenu = document.getElementById('notification-menu');
         const profileMenu = document.getElementById('profile-dropdown');
         notificationMenu.classList.toggle('hidden');
-        profileMenu.classList.add('hidden');
-        document.getElementById('profile-arrow').classList.remove('rotate-180');
+        if (profileMenu) {
+            profileMenu.classList.add('hidden');
+            document.getElementById('profile-arrow').classList.remove('rotate-180');
+        }
+        
+        // Optional: Refresh notifications when dropdown is opened
+        if (!notificationMenu.classList.contains('hidden')) {
+            refreshNotifications();
+        }
     }
+    
+    // Refresh notifications
+    function refreshNotifications() {
+        fetch('/api/notifications')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateNotificationUI(data.data);
+                }
+            })
+            .catch(error => console.error('Error fetching notifications:', error));
+            
+        // Also refresh unread count
+        fetch('/api/notifications/unread-count')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    updateUnreadBadge(data.count);
+                }
+            })
+            .catch(error => console.error('Error fetching unread count:', error));
+    }
+    
+    // Update notification UI
+    function updateNotificationUI(notifications) {
+        const container = document.getElementById('notification-container');
+        const emptyNotice = document.getElementById('empty-notification');
+        
+        if (notifications.length === 0) {
+            container.innerHTML = '<div class="p-4 text-center text-gray-500">Tidak ada notifikasi</div>';
+            return;
+        }
+        
+        if (emptyNotice) {
+            emptyNotice.remove();
+        }
+        
+        let html = '';
+        notifications.forEach(notification => {
+            const readClass = notification.dibaca ? '' : 'bg-blue-50';
+            const formattedDate = new Date(notification.created_at).toLocaleString('id-ID');
+            
+            html += `
+            <a href="javascript:void(0);" onclick="markAsRead('${notification.id_notifikasi}')" 
+               class="block p-4 border-b border-gray-100 hover:bg-gray-50 ${readClass}">
+                <div class="font-semibold">${notification.judul}</div>
+                <div class="text-sm text-gray-600">${notification.pesan}</div>
+                <div class="text-xs text-gray-400 mt-1">${formattedDate}</div>
+            </a>`;
+        });
+        
+        container.innerHTML = html;
+    }
+    
+    // Update unread badge
+    function updateUnreadBadge(count) {
+        const badge = document.getElementById('notification-badge');
+        if (count > 0) {
+            badge.textContent = count > 9 ? '9+' : count;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+    
+    // Mark notification as read
+    function markAsRead(notificationId) {
+        fetch(`/api/notifications/${notificationId}/mark-as-read`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                refreshNotifications();
+            }
+        })
+        .catch(error => console.error('Error marking notification as read:', error));
+    }
+    
+    // Mark all notifications as read
+    function markAllAsRead() {
+        fetch('/api/notifications/mark-all-as-read', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                refreshNotifications();
+            }
+        })
+        .catch(error => console.error('Error marking all notifications as read:', error));
+    }
+
+    // Load notifications on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        // Refresh notifications every 30 seconds
+        setInterval(refreshNotifications, 30000);
+    });
 
     // Toggle profile dropdown
     function toggleProfileDropdown() {
