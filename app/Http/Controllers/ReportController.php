@@ -31,147 +31,194 @@ class ReportController extends Controller
         return $workingDays;
     }
     
-    /**
-     * Export nilai peserta magang ke Excel
-     */
-    public function exportInternsScore(Request $request)
-    {
-        try {
-            $bidang = $request->input('bidang');
-            $end_date_start = $request->input('end_date_start');
-            $end_date_end = $request->input('end_date_end');
+   /**
+ * Export nilai peserta magang ke Excel
+ */
+public function exportInternsScore(Request $request)
+{
+    try {
+        $bidang = $request->input('bidang');
+        $end_date_start = $request->input('end_date_start');
+        $end_date_end = $request->input('end_date_end');
 
-            // Query untuk ambil data lengkap peserta
-            $query = "
-            SELECT 
-                pm.nama,
-                pm.jenis_peserta,
-                CASE 
-                    WHEN pm.jenis_peserta = 'mahasiswa' THEN m.nim
-                    ELSE s.nisn
-                END as nomor_induk,
-                pm.nama_institusi,  
-                b.nama_bidang,
-                DATE_FORMAT(pm.tanggal_masuk, '%d-%m-%Y') as tanggal_masuk,
-                DATE_FORMAT(pm.tanggal_keluar, '%d-%m-%Y') as tanggal_keluar,
-                pm.status,
-                CASE 
-                    WHEN pm.jenis_peserta = 'mahasiswa' THEN m.fakultas
-                    ELSE NULL
-                END as fakultas,
-                CASE 
-                    WHEN pm.jenis_peserta = 'mahasiswa' THEN m.jurusan
-                    ELSE s.jurusan
-                END as jurusan,
-                m.semester,
-                s.kelas,
-                p.nilai_teamwork,
-                p.nilai_komunikasi,
-                p.nilai_pengambilan_keputusan,
-                p.nilai_kualitas_kerja,
-                p.nilai_teknologi,
-                p.nilai_disiplin,
-                p.nilai_tanggungjawab,
-                p.nilai_kerjasama,
-                p.nilai_inisiatif,
-                p.nilai_kejujuran,
-                p.nilai_kebersihan,
-                p.jumlah_hadir
-            FROM peserta_magang pm
-            LEFT JOIN bidang b ON pm.id_bidang = b.id_bidang
-            LEFT JOIN data_mahasiswa m ON pm.id_magang = m.id_magang
-            LEFT JOIN data_siswa s ON pm.id_magang = s.id_magang
-            INNER JOIN penilaian p ON pm.id_magang = p.id_magang
-            WHERE pm.status = 'selesai'
-            AND p.id_magang IS NOT NULL
-            ";
+        // Query untuk ambil data lengkap peserta
+        $query = "
+        SELECT 
+            pm.nama,
+            pm.jenis_peserta,
+            CASE 
+                WHEN pm.jenis_peserta = 'mahasiswa' THEN m.nim
+                ELSE s.nisn
+            END as nomor_induk,
+            pm.nama_institusi,  
+            b.nama_bidang,
+            DATE_FORMAT(pm.tanggal_masuk, '%d-%m-%Y') as tanggal_masuk,
+            DATE_FORMAT(pm.tanggal_keluar, '%d-%m-%Y') as tanggal_keluar,
+            pm.status,
+            CASE 
+                WHEN pm.jenis_peserta = 'mahasiswa' THEN m.fakultas
+                ELSE NULL
+            END as fakultas,
+            CASE 
+                WHEN pm.jenis_peserta = 'mahasiswa' THEN m.jurusan
+                ELSE s.jurusan
+            END as jurusan,
+            m.semester,
+            s.kelas,
+            p.nilai_teamwork,
+            p.nilai_komunikasi,
+            p.nilai_pengambilan_keputusan,
+            p.nilai_kualitas_kerja,
+            p.nilai_teknologi,
+            p.nilai_disiplin,
+            p.nilai_tanggungjawab,
+            p.nilai_kerjasama,
+            p.nilai_kejujuran,
+            p.nilai_kebersihan,
+            p.jumlah_hadir
+        FROM peserta_magang pm
+        LEFT JOIN bidang b ON pm.id_bidang = b.id_bidang
+        LEFT JOIN data_mahasiswa m ON pm.id_magang = m.id_magang
+        LEFT JOIN data_siswa s ON pm.id_magang = s.id_magang
+        INNER JOIN penilaian p ON pm.id_magang = p.id_magang
+        WHERE pm.status = 'selesai'
+        AND p.id_magang IS NOT NULL
+        ";
 
-            // Tambahkan filter bidang dan tanggal
-            $queryParams = [];
-            if ($bidang) {
-                $query .= " AND b.nama_bidang = ?";
-                $queryParams[] = $bidang;
-            }
-            if ($end_date_start && $end_date_end) {
-                $query .= " AND pm.tanggal_keluar BETWEEN ? AND ?";
-                $queryParams[] = $end_date_start;
-                $queryParams[] = $end_date_end;
-            }
-
-            $rows = DB::select($query, $queryParams);
-
-            // Buat spreadsheet baru
-            $spreadsheet = new Spreadsheet();
-            $sheet = $spreadsheet->getActiveSheet();
-            
-            // Set header kolom
-            $headers = [
-                'Nama', 'Nomor Induk', 'Institusi', 'Bidang', 
-                'Tanggal Masuk', 'Tanggal Keluar', 'Fakultas', 'Jurusan', 'Absensi',
-                'Nilai Teamwork', 'Nilai Komunikasi', 'Nilai Pengambilan Keputusan',
-                'Nilai Kualitas Kerja', 'Nilai Teknologi', 'Nilai Disiplin',
-                'Nilai Tanggung Jawab', 'Nilai Kerjasama', 'Nilai Inisiatif',
-                'Nilai Kejujuran', 'Nilai Kebersihan'
-            ];
-            
-            // Tambahkan header
-            $column = 1;
-            foreach ($headers as $header) {
-                $sheet->setCellValueByColumnAndRow($column, 1, $header);
-                $column++;
-            }
-            
-            // Tambahkan data
-            $row = 2;
-            foreach ($rows as $dataRow) {
-                $sheet->setCellValueByColumnAndRow(1, $row, $dataRow->nama ?? '-');
-                $sheet->setCellValueByColumnAndRow(2, $row, $dataRow->nomor_induk ?? '-');
-                $sheet->setCellValueByColumnAndRow(3, $row, $dataRow->nama_institusi ?? '-');
-                $sheet->setCellValueByColumnAndRow(4, $row, $dataRow->nama_bidang ?? '-');
-                $sheet->setCellValueByColumnAndRow(5, $row, $dataRow->tanggal_masuk ?? '-');
-                $sheet->setCellValueByColumnAndRow(6, $row, $dataRow->tanggal_keluar ?? '-');
-                $sheet->setCellValueByColumnAndRow(7, $row, $dataRow->fakultas ?? '-');
-                $sheet->setCellValueByColumnAndRow(8, $row, $dataRow->jurusan ?? '-');
-                $sheet->setCellValueByColumnAndRow(9, $row, $dataRow->jumlah_hadir ?? '-');
-                $sheet->setCellValueByColumnAndRow(10, $row, $dataRow->nilai_teamwork ?? '-');
-                $sheet->setCellValueByColumnAndRow(11, $row, $dataRow->nilai_komunikasi ?? '-');
-                $sheet->setCellValueByColumnAndRow(12, $row, $dataRow->nilai_pengambilan_keputusan ?? '-');
-                $sheet->setCellValueByColumnAndRow(13, $row, $dataRow->nilai_kualitas_kerja ?? '-');
-                $sheet->setCellValueByColumnAndRow(14, $row, $dataRow->nilai_teknologi ?? '-');
-                $sheet->setCellValueByColumnAndRow(15, $row, $dataRow->nilai_disiplin ?? '-');
-                $sheet->setCellValueByColumnAndRow(16, $row, $dataRow->nilai_tanggungjawab ?? '-');
-                $sheet->setCellValueByColumnAndRow(17, $row, $dataRow->nilai_kerjasama ?? '-');
-                $sheet->setCellValueByColumnAndRow(18, $row, $dataRow->nilai_inisiatif ?? '-');
-                $sheet->setCellValueByColumnAndRow(19, $row, $dataRow->nilai_kejujuran ?? '-');
-                $sheet->setCellValueByColumnAndRow(20, $row, $dataRow->nilai_kebersihan ?? '-');
-                $row++;
-            }
-            
-            // Atur lebar kolom
-            $columnWidths = [30, 20, 30, 20, 15, 15, 20, 25, 15, 15, 25, 20, 15, 15, 20, 15, 15, 15, 15, 10];
-            for ($i = 0; $i < count($columnWidths); $i++) {
-                $sheet->getColumnDimensionByColumn($i + 1)->setWidth($columnWidths[$i]);
-            }
-            
-            // Buat file
-            $writer = new Xlsx($spreadsheet);
-            $filename = 'Data_Anak_Magang.xlsx';
-            $tempFile = tempnam(sys_get_temp_dir(), 'excel_');
-            $writer->save($tempFile);
-            
-            return response()->download($tempFile, $filename, [
-                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            ])->deleteFileAfterSend(true);
-
-        } catch (\Exception $error) {
-            \Log::error('Error exporting data: ' . $error->getMessage());
-            return response()->json([
-                'status' => "error",
-                'message' => "Terjadi kesalahan saat export data",
-                'error' => $error->getMessage()
-            ], 500);
+        // Tambahkan filter bidang dan tanggal
+        $queryParams = [];
+        if ($bidang) {
+            $query .= " AND b.nama_bidang = ?";
+            $queryParams[] = $bidang;
         }
+        if ($end_date_start && $end_date_end) {
+            $query .= " AND pm.tanggal_keluar BETWEEN ? AND ?";
+            $queryParams[] = $end_date_start;
+            $queryParams[] = $end_date_end;
+        }
+
+        $rows = DB::select($query, $queryParams);
+
+        // Buat spreadsheet baru
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Set header kolom - REMOVED 'Nilai Inisiatif'
+        $headers = [
+            'Nama', 'Nomor Induk', 'Institusi', 'Bidang', 
+            'Tanggal Masuk', 'Tanggal Keluar', 'Fakultas', 'Jurusan', 'Absensi',
+            'Nilai Teamwork', 'Nilai Komunikasi', 'Nilai Pengambilan Keputusan',
+            'Nilai Kualitas Kerja', 'Nilai Teknologi', 'Nilai Disiplin',
+            'Nilai Tanggung Jawab', 'Nilai Kerjasama',
+            'Nilai Kejujuran', 'Nilai Kebersihan'
+        ];
+        
+        // Define column letters - ADJUSTED for removal of 'Nilai Inisiatif'
+        $columnLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S'];
+        $columnWidths = [30, 20, 30, 20, 15, 15, 20, 25, 15, 15, 25, 20, 15, 15, 20, 15, 15, 15, 10];
+        
+        // Add headers
+        for ($i = 0; $i < count($headers); $i++) {
+            $sheet->setCellValue($columnLetters[$i] . '1', $headers[$i]);
+        }
+        
+        // Add data - ADJUSTED column mappings
+        $rowIndex = 2; // Start from row 2
+        foreach ($rows as $dataRow) {
+            $sheet->setCellValue('A' . $rowIndex, $dataRow->nama ?? '-');
+            $sheet->setCellValue('B' . $rowIndex, $dataRow->nomor_induk ?? '-');
+            $sheet->setCellValue('C' . $rowIndex, $dataRow->nama_institusi ?? '-');
+            $sheet->setCellValue('D' . $rowIndex, $dataRow->nama_bidang ?? '-');
+            $sheet->setCellValue('E' . $rowIndex, $dataRow->tanggal_masuk ?? '-');
+            $sheet->setCellValue('F' . $rowIndex, $dataRow->tanggal_keluar ?? '-');
+            $sheet->setCellValue('G' . $rowIndex, $dataRow->fakultas ?? '-');
+            $sheet->setCellValue('H' . $rowIndex, $dataRow->jurusan ?? '-');
+            $sheet->setCellValue('I' . $rowIndex, $dataRow->jumlah_hadir ?? '-');
+            $sheet->setCellValue('J' . $rowIndex, $dataRow->nilai_teamwork ?? '-');
+            $sheet->setCellValue('K' . $rowIndex, $dataRow->nilai_komunikasi ?? '-');
+            $sheet->setCellValue('L' . $rowIndex, $dataRow->nilai_pengambilan_keputusan ?? '-');
+            $sheet->setCellValue('M' . $rowIndex, $dataRow->nilai_kualitas_kerja ?? '-');
+            $sheet->setCellValue('N' . $rowIndex, $dataRow->nilai_teknologi ?? '-');
+            $sheet->setCellValue('O' . $rowIndex, $dataRow->nilai_disiplin ?? '-');
+            $sheet->setCellValue('P' . $rowIndex, $dataRow->nilai_tanggungjawab ?? '-');
+            $sheet->setCellValue('Q' . $rowIndex, $dataRow->nilai_kerjasama ?? '-');
+            $sheet->setCellValue('R' . $rowIndex, $dataRow->nilai_kejujuran ?? '-');
+            $sheet->setCellValue('S' . $rowIndex, $dataRow->nilai_kebersihan ?? '-');
+            $rowIndex++;
+        }
+        
+        // Total rows including header
+        $totalRows = count($rows) + 1;
+        
+        // Set column widths
+        for ($i = 0; $i < count($columnLetters); $i++) {
+            $sheet->getColumnDimension($columnLetters[$i])->setWidth($columnWidths[$i]);
+        }
+        
+        // Style headers - Make them bold, green with white text
+        $sheet->getStyle('A1:S1')->getFont()->setBold(true); // ADJUSTED to S1 instead of T1
+        $sheet->getStyle('A1:S1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+        $sheet->getStyle('A1:S1')->getFill()->getStartColor()->setARGB('FF4CAF50'); // Green color
+        $sheet->getStyle('A1:S1')->getFont()->getColor()->setARGB('FFFFFFFF'); // White text
+        
+        // Center align headers
+        $sheet->getStyle('A1:S1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('A1:S1')->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        
+        // Add borders to all cells in the table
+        $borderStyle = [
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    'color' => ['argb' => 'FF000000'], // Black color
+                ],
+                'outline' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM,
+                    'color' => ['argb' => 'FF000000'], // Black color
+                ],
+            ],
+        ];
+        
+        // Apply the border to all cells
+        $sheet->getStyle('A1:S' . $totalRows)->applyFromArray($borderStyle); // ADJUSTED to S instead of T
+        
+        // Auto-filter for easy sorting
+        $sheet->setAutoFilter('A1:S1'); // ADJUSTED to S1 instead of T1
+        
+        // Zebra striping for better readability (light gray for even rows)
+        for ($row = 2; $row <= $totalRows; $row++) {
+            if ($row % 2 == 0) {
+                $sheet->getStyle('A' . $row . ':S' . $row)->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+                $sheet->getStyle('A' . $row . ':S' . $row)->getFill()->getStartColor()->setARGB('FFF2F2F2'); // Light gray
+            }
+        }
+        
+        // Center align certain columns like dates and numbers
+        $sheet->getStyle('E2:F' . $totalRows)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER); // Dates
+        $sheet->getStyle('I2:S' . $totalRows)->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER); // Numbers/Scores
+        
+        // Freeze panes so headers stay visible when scrolling
+        $sheet->freezePane('A2');
+        
+        // Buat file
+        $writer = new Xlsx($spreadsheet);
+        $filename = 'Data_Anak_Magang.xlsx';
+        $tempFile = tempnam(sys_get_temp_dir(), 'excel_');
+        $writer->save($tempFile);
+        
+        return response()->download($tempFile, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+
+    } catch (\Exception $error) {
+        \Log::error('Error exporting data: ' . $error->getMessage());
+        return response()->json([
+            'status' => "error",
+            'message' => "Terjadi kesalahan saat export data",
+            'error' => $error->getMessage()
+        ], 500);
     }
+}
 
     /**
      * Generate sertifikat magang
