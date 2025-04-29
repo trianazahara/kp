@@ -4,8 +4,14 @@
 
 @section('content')
 <div class="container mx-auto px-4 py-8">
+    <!-- Updated header with export button -->
     <div class="bg-gradient-to-r from-green-400 to-blue-500 text-white p-6 rounded-lg shadow-lg mb-6">
-        <h1 class="text-2xl font-bold">Rekap Nilai Peserta Magang</h1>
+        <div class="flex justify-between items-center">
+            <h1 class="text-2xl font-bold">Rekap Nilai Peserta Magang</h1>
+            <button id="exportButton" class="bg-white hover:bg-gray-100 text-green-600 font-semibold py-2 px-4 rounded-md flex items-center text-sm">
+                <i class="fas fa-file-export mr-2"></i> Export Excel
+            </button>
+        </div>
     </div>
 
     <div class="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -202,6 +208,54 @@
         <span id="toastMessage"></span>
     </div>
 </div>
+
+
+<!-- Export Modal -->
+<div id="exportModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-gray-800">Export Data</h2>
+            <button id="closeExportModal" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <div class="space-y-4">
+                <label class="inline-flex items-center">
+                    <input type="radio" name="exportType" value="all" class="form-radio h-5 w-5 text-green-600" checked>
+                    <span class="ml-2 text-gray-700">Export Semua Data</span>
+                </label>
+                <label class="inline-flex items-center">
+                    <input type="radio" name="exportType" value="filtered" class="form-radio h-5 w-5 text-green-600">
+                    <span class="ml-2 text-gray-700">Export Berdasarkan Filter Tanggal</span>
+                </label>
+                
+                <!-- Date filter fields, shown only when "Export Berdasarkan Filter Tanggal" is selected -->
+                <div id="dateFilterFields" class="hidden mt-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Mulai</label>
+                        <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Akhir</label>
+                        <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+            <button id="cancelExportBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md">
+                Batal
+            </button>
+            <button id="confirmExportBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md">
+                Export
+            </button>
+        </div>
+    </div>
+</div>
+</div>
 @endsection
 
 @section('scripts')
@@ -243,6 +297,91 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('View detail for ID:', id);
             window.location.href = `/dashboard/interns/detail/${id}`;
         });
+    });
+
+   // Export Modal functionality
+   const exportButton = document.getElementById('exportButton');
+    const exportModal = document.getElementById('exportModal');
+    const closeExportModal = document.getElementById('closeExportModal');
+    const cancelExportBtn = document.getElementById('cancelExportBtn');
+    const confirmExportBtn = document.getElementById('confirmExportBtn');
+    const exportTypeRadios = document.querySelectorAll('input[name="exportType"]');
+    const dateFilterFields = document.getElementById('dateFilterFields');
+    
+    // Show export modal
+    exportButton.addEventListener('click', function() {
+        exportModal.classList.remove('hidden');
+    });
+    
+    // Hide export modal
+    function hideExportModal() {
+        exportModal.classList.add('hidden');
+    }
+    
+    closeExportModal.addEventListener('click', hideExportModal);
+    cancelExportBtn.addEventListener('click', hideExportModal);
+    
+    // Toggle date filter fields based on export type
+    exportTypeRadios.forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'filtered') {
+                dateFilterFields.classList.remove('hidden');
+            } else {
+                dateFilterFields.classList.add('hidden');
+            }
+        });
+    });
+    
+    // Handle export confirmation
+    confirmExportBtn.addEventListener('click', function() {
+        const exportType = document.querySelector('input[name="exportType"]:checked').value;
+        
+        // Change this URL to match your route in api.php
+        let url = '/api/interns/export';
+        
+        // Build query parameters
+        const params = new URLSearchParams();
+        
+        // Add bidang filter if selected
+        const bidangFilter = document.getElementById('bidangFilter');
+        if (bidangFilter && bidangFilter.value) {
+            params.append('bidang', bidangFilter.value);
+        }
+        
+        // Add date range if "filtered" option is selected
+        if (exportType === 'filtered') {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!startDate || !endDate) {
+                alert('Silakan pilih tanggal mulai dan tanggal akhir');
+                return;
+            }
+            
+            params.append('end_date_start', startDate);
+            params.append('end_date_end', endDate);
+        }
+        
+        // Create final URL with parameters
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
+        
+        // Debug to console
+        console.log('Export URL:', url);
+        
+        // Redirect to download URL
+        window.location.href = url;
+        
+        // Hide modal
+        hideExportModal();
+    });
+    
+    // Close modal when clicking outside
+    exportModal.addEventListener('click', function(e) {
+        if (e.target === exportModal) {
+            hideExportModal();
+        }
     });
 
     // Edit score button - BUKA MODAL (bukan redirect)
