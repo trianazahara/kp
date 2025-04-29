@@ -1,4 +1,3 @@
-
 @extends('layouts.app')
 
 @section('title', 'Manajemen Admin')
@@ -49,6 +48,18 @@
 
 @section('content')
 <div class="p-4 md:p-6 lg:p-8 w-full">
+    <!-- Error Alerts - Tampilkan validation errors -->
+    @if ($errors->any())
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+        <strong class="font-bold">Error!</strong>
+        <ul>
+            @foreach ($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+    </div>
+    @endif
+    
     <!-- Header -->
     <div class="bg-gradient-to-r from-emerald-400 via-cyan-400 to-yellow-200 rounded-lg shadow-md p-4 mb-6">
         <div class="flex justify-between items-center">
@@ -99,7 +110,7 @@
         <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
             <h3 class="text-lg font-medium text-gray-900 mb-4" id="modal-title">Tambah Admin Baru</h3>
             
-            <form id="admin-form" method="POST">
+            <form id="admin-form" method="POST" action="{{ route('admin.store') }}" onsubmit="return validateForm()">
                 @csrf
                 <div class="space-y-4">
                     <div>
@@ -134,8 +145,9 @@
                     
                     <div>
                         <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                        <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
-                        <p id="password-help" class="text-xs text-gray-500 mt-1 hidden">Kosongkan jika tidak ingin mengubah password</p>
+                        <input type="password" id="password" name="password" minlength="6" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm" required>
+                        <p id="password-help" class="text-xs text-gray-500 mt-1">Password minimal 6 karakter</p>
+                        <p id="password-error" class="text-xs text-red-500 mt-1 hidden">Password harus minimal 6 karakter!</p>
                     </div>
                     
                     <input type="hidden" id="admin_id" name="admin_id">
@@ -190,6 +202,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelBtn = document.getElementById('cancel-btn');
     const addAdminBtn = document.getElementById('add-admin-btn');
     const passwordHelp = document.getElementById('password-help');
+    const passwordError = document.getElementById('password-error');
     const deleteModal = document.getElementById('delete-modal');
     const cancelDeleteBtn = document.getElementById('cancel-delete');
     const confirmDeleteBtn = document.getElementById('confirm-delete');
@@ -199,6 +212,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // State
     let isEditMode = false;
     let selectedAdmin = null;
+    
+    // Form validation
+    window.validateForm = function() {
+        const passwordField = document.getElementById('password');
+        
+        // Cek password hanya pada mode tambah admin atau jika password diisi pada mode edit
+        if (!isEditMode || passwordField.value.trim() !== '') {
+            if (passwordField.value.length < 6) {
+                passwordError.classList.remove('hidden');
+                return false;
+            } else {
+                passwordError.classList.add('hidden');
+            }
+        }
+        
+        return true;
+    };
     
     // Event Listeners
     addAdminBtn.addEventListener('click', function() {
@@ -225,9 +255,27 @@ document.addEventListener('DOMContentLoaded', function() {
         closeModal();
     });
     
+    // Perubahan utama: Gunakan submit form standar untuk form tambah
     adminForm.addEventListener('submit', function(e) {
+        if (!isEditMode) {
+            // Mode tambah: biarkan form submit normal jika validasi berhasil
+            return validateForm();
+        }
+        
+        // Mode edit: gunakan AJAX
         e.preventDefault();
-        submitForm();
+        if (validateForm()) {
+            submitForm();
+        }
+    });
+    
+    // Tambahkan event listener untuk validasi password saat ketik
+    document.getElementById('password').addEventListener('input', function() {
+        if (this.value.length < 6) {
+            passwordError.classList.remove('hidden');
+        } else {
+            passwordError.classList.add('hidden');
+        }
     });
     
     cancelDeleteBtn.addEventListener('click', function() {
@@ -248,6 +296,9 @@ document.addEventListener('DOMContentLoaded', function() {
         isEditMode = !!admin;
         selectedAdmin = admin;
         
+        // Reset error messages
+        passwordError.classList.add('hidden');
+        
         if (isEditMode) {
             // Edit Mode
             modalTitle.textContent = 'Edit Admin';
@@ -258,16 +309,42 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('id_bidang').value = admin.id_bidang;
             document.getElementById('password').value = '';
             document.getElementById('password').removeAttribute('required');
+            document.getElementById('password').removeAttribute('minlength');
             document.getElementById('admin_id').value = admin.id_users;
-            passwordHelp.classList.remove('hidden');
+            passwordHelp.textContent = 'Kosongkan jika tidak ingin mengubah password';
             submitBtn.textContent = 'Perbarui';
+            
+            // Ubah action form untuk edit
+            adminForm.action = "{{ url('/admin') }}/" + admin.id_users;
+            adminForm.method = "POST";
+            
+            // Tambahkan method spoofing untuk PUT
+            let methodInput = document.querySelector('input[name="_method"]');
+            if (!methodInput) {
+                methodInput = document.createElement('input');
+                methodInput.type = 'hidden';
+                methodInput.name = '_method';
+                adminForm.appendChild(methodInput);
+            }
+            methodInput.value = 'PUT';
         } else {
             // Add Mode
             modalTitle.textContent = 'Tambah Admin Baru';
             adminForm.reset();
             document.getElementById('password').setAttribute('required', 'required');
-            passwordHelp.classList.add('hidden');
+            document.getElementById('password').setAttribute('minlength', '6');
+            passwordHelp.textContent = 'Password minimal 6 karakter';
             submitBtn.textContent = 'Tambah';
+            
+            // Reset action form untuk tambah
+            adminForm.action = "{{ route('admin.store') }}";
+            adminForm.method = "POST";
+            
+            // Hapus method spoofing jika ada
+            const methodInput = document.querySelector('input[name="_method"]');
+            if (methodInput) {
+                methodInput.remove();
+            }
         }
         
         adminModal.classList.remove('hidden');
@@ -278,92 +355,77 @@ document.addEventListener('DOMContentLoaded', function() {
         adminForm.reset();
     }
     
+    // Function untuk edit via AJAX
     function submitForm() {
-    console.log('Form submission started');
-    
-    // Kumpulkan data form
-    const formData = new FormData(adminForm);
-    
-    // Debug: Tampilkan data yang akan dikirim
-    for (let [key, value] of formData.entries()) {
-        console.log(`${key}: ${value}`);
-    }
-    
-    // Get CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    
-    // Tentukan URL, jaga format asli untuk kompatibilitas
-    let url;
-    let method;
-    
-    if (isEditMode) {
-        // Update existing admin
-        url = "{{ url('/admin') }}/" + selectedAdmin.id_users;
-        method = 'PUT';
+        console.log('Form submission started for EDIT');
+        
+        // Kumpulkan data form
+        const formData = new FormData(adminForm);
+        
+        // Debug: Tampilkan data yang akan dikirim
+        for (let [key, value] of formData.entries()) {
+            console.log(`${key}: ${value}`);
+        }
+        
+        // Get CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        // Tentukan URL untuk update
+        const url = "{{ url('/admin') }}/" + selectedAdmin.id_users;
         
         // Jika password kosong, hapus dari form data
         const passwordField = document.getElementById('password');
         if (!passwordField.value) {
             formData.delete('password');
         }
-    } else {
-        // Add new admin
-        url = "{{ route('admin.store') }}";
-        method = 'POST';
+        
+        console.log(`Sending PUT request to: ${url}`);
+        
+        // Kirim dengan fetch API
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json,text/html'
+            },
+            credentials: 'same-origin',
+            redirect: 'follow'
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            
+            // Cek jika ini redirect (biasanya sukses untuk Laravel)
+            if (response.redirected) {
+                console.log('Redirected to:', response.url);
+                window.location.href = response.url;
+                return null;
+            }
+            
+            // Coba parse sebagai JSON, jika gagal ambil sebagai text
+            if (response.headers.get('content-type')?.includes('application/json')) {
+                return response.json();
+            } else {
+                return response.text();
+            }
+        })
+        .then(data => {
+            if (data === null) return; // Sudah dihandle sebagai redirect
+            
+            console.log('Response data:', data);
+            
+            // Tampilkan notifikasi sukses dan reload
+            showNotification('Admin berhasil diperbarui', 'success');
+            setTimeout(() => { window.location.reload(); }, 1500);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Terjadi kesalahan: ' + error.message, 'error');
+        });
+        
+        // Prevent default form submission
+        return false;
     }
-    
-    console.log(`Sending ${method} request to: ${url}`);
-    
-    // Untuk PUT requests, tambahkan _method field
-    if (method === 'PUT') {
-        formData.append('_method', 'PUT');
-    }
-    
-    // Kirim dengan fetch API
-    fetch(url, {
-        method: 'POST', // Selalu POST karena FormData
-        body: formData,
-        headers: {
-            'X-CSRF-TOKEN': csrfToken,
-            'Accept': 'application/json,text/html'
-        },
-        credentials: 'same-origin',
-        redirect: 'follow'
-    })
-    .then(response => {
-        console.log('Response status:', response.status);
-        
-        // Cek jika ini redirect (biasanya sukses untuk Laravel)
-        if (response.redirected) {
-            console.log('Redirected to:', response.url);
-            window.location.href = response.url;
-            return null;
-        }
-        
-        // Coba parse sebagai JSON, jika gagal ambil sebagai text
-        if (response.headers.get('content-type')?.includes('application/json')) {
-            return response.json();
-        } else {
-            return response.text();
-        }
-    })
-    .then(data => {
-        if (data === null) return; // Sudah dihandle sebagai redirect
-        
-        console.log('Response data:', data);
-        
-        // Tampilkan notifikasi sukses dan reload
-        showNotification(isEditMode ? 'Admin berhasil diperbarui' : 'Admin berhasil ditambahkan', 'success');
-        setTimeout(() => { window.location.reload(); }, 1500);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification('Terjadi kesalahan: ' + error.message, 'error');
-    });
-    
-    // Prevent default form submission
-    return false;
-}
     
     function openDeleteModal(admin) {
         deleteIdInput.value = admin.id_users;
