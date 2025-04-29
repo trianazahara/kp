@@ -258,6 +258,7 @@
 </div>
 @endsection
 
+
 @section('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -299,8 +300,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-   // Export Modal functionality
-   const exportButton = document.getElementById('exportButton');
+    // Export Modal functionality
+    const exportButton = document.getElementById('exportButton');
     const exportModal = document.getElementById('exportModal');
     const closeExportModal = document.getElementById('closeExportModal');
     const cancelExportBtn = document.getElementById('cancelExportBtn');
@@ -336,8 +337,9 @@ document.addEventListener('DOMContentLoaded', function() {
     confirmExportBtn.addEventListener('click', function() {
         const exportType = document.querySelector('input[name="exportType"]:checked').value;
         
-        // Change this URL to match your route in api.php
-        let url = '/api/interns/export';
+        // Try both possible URLs (pick one that works for your setup)
+        // let url = '/api/interns/export'; // If using the route within the interns group
+        let url = '/api/export'; // If using the direct route we added
         
         // Build query parameters
         const params = new URLSearchParams();
@@ -367,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
             url += '?' + params.toString();
         }
         
-        // Debug to console
+        // Debug to console - helpful for troubleshooting
         console.log('Export URL:', url);
         
         // Redirect to download URL

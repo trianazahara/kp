@@ -875,9 +875,9 @@ $nilaiKeText = function($nilai) {
                                     ($peserta->jurusan_siswa ?? '-'));
             
             // Nomor dan tanggal naskah
-            $templateProcessor->setValue('{nomor_naskah}', '{nomor_naskah}');
+            $templateProcessor->setValue('{nomor_naskah}', '${nomor_naskah}');
             $templateProcessor->setValue('{tanggal_naskah}', $formatTanggalIndonesia(Carbon::now()));
-            $templateProcessor->setValue('{ttd_pengirim}', '');
+            $templateProcessor->setValue('{ttd_pengirim}', '${ttd_pengirim}');
             
             // JANGAN BATASI NILAI - gunakan nilai asli dari database
             $nilai_teamwork = $peserta->nilai_teamwork ?? 0;
