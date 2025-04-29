@@ -60,43 +60,44 @@ class SettingsController extends Controller
      * Update profil user
      */
     public function updateProfile(Request $request)
-{
-    $user = Auth::user();
+    {
+        $user = Auth::user();
 
-    $validator = Validator::make($request->all(), [
-        'username' => 'nullable|string|unique:users,username,'.$user->id_users.',id_users',
-        'email' => 'nullable|email|unique:users,email,'.$user->id_users.',id_users',
-        'nama' => 'nullable|string|max:255',
-    ]);
+        $validator = Validator::make($request->all(), [
+            'username' => 'nullable|string|unique:users,username,'.$user->id_users.',id_users',
+            'email' => 'nullable|email|unique:users,email,'.$user->id_users.',id_users',
+            'nama' => 'nullable|string|max:255',
+        ]);
 
-    if ($validator->fails()) {
-        return redirect()->back()
-            ->withErrors($validator)
-            ->withInput();
-    }
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
 
-    // Jika tidak ada field yang diisi, kembalikan tanpa error
-    if (!$request->filled('username') && !$request->filled('email') && !$request->filled('nama')) {
+        // Jika tidak ada field yang diisi, kembalikan tanpa error
+        if (!$request->filled('username') && !$request->filled('email') && !$request->filled('nama')) {
+            return redirect()->route('settings.index')
+                ->with('info', 'Tidak ada perubahan yang dilakukan.');
+        }
+
+        $data = [];
+        if ($request->filled('username')) {
+            $data['username'] = $request->username;
+        }
+        if ($request->filled('email')) {
+            $data['email'] = $request->email;
+        }
+        if ($request->filled('nama')) {
+            $data['nama'] = $request->nama;
+        }
+
+        $user->update($data);
+
         return redirect()->route('settings.index')
-            ->with('info', 'Tidak ada perubahan yang dilakukan.');
+            ->with('success', 'Profil berhasil diperbarui.');
     }
-
-    $data = [];
-    if ($request->filled('username')) {
-        $data['username'] = $request->username;
-    }
-    if ($request->filled('email')) {
-        $data['email'] = $request->email;
-    }
-    if ($request->filled('nama')) {
-        $data['nama'] = $request->nama;
-    }
-
-    $user->update($data);
-
-    return redirect()->route('settings.index')
-        ->with('success', 'Profil berhasil diperbarui.');
-}
+    
     /**
      * Update profil via API
      */
@@ -336,130 +337,5 @@ class SettingsController extends Controller
             'message' => 'Foto profil berhasil dihapus',
             'profile_picture' => null
         ]);
-    }    
-    public function uploadTemplate(Request $request)
-    {
-        $user = Auth::user();
-
-        $validator = Validator::make($request->all(), [
-            'file' => 'required|mimes:doc,docx|max:51200',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        try {
-            // Nonaktifkan template sebelumnya
-            Template::where('id_users', $user->id_users)
-                    ->update(['active' => 0]);
-
-            $file = $request->file('file');
-            $uuid = Str::uuid();
-            $originalName = $file->getClientOriginalName();
-            $storedName = $uuid . '---' . $originalName;
-            $filePath = 'templates/' . $storedName;
-
-            // Simpan file
-            $path = $file->storeAs('templates', $storedName, 'public');
-
-            // Simpan ke database
-            Template::create([
-                'id_dokumen' => $uuid,
-                'id_users' => $user->id_users,
-                'file_path' => $filePath,
-                'size' => $file->getSize(),
-                'active' => 1,
-                'created_by' => $user->id_users
-            ]);
-
-            return redirect()->back()
-                ->with('success', 'Template berhasil diupload!');
-
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Gagal upload template: ' . $e->getMessage());
-        }
     }
-
-    public function deleteTemplate($id)
-    {
-        try {
-            $user = Auth::user();
-            $template = Template::where('id_dokumen', $id)
-                              ->where('id_users', $user->id_users)
-                              ->firstOrFail();
-
-            // Hapus file fisik
-            if (Storage::disk('public')->exists($template->file_path)) {
-                Storage::disk('public')->delete($template->file_path);
-            }
-
-            // Hapus dari database
-            $template->delete();
-
-            return redirect()->back()
-                ->with('success', 'Template berhasil dihapus');
-
-        } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Gagal menghapus template: ' . $e->getMessage());
-        }
-    }
-
-// Controller
-public function previewTemplate($id)
-{
-    try {
-        $user = Auth::user();
-        $template = Template::where('id_dokumen', $id)
-                          ->where('id_users', $user->id_users)
-                          ->firstOrFail();
-
-        $filePath = storage_path('app/public/' . $template->file_path);
-
-        // Validasi file
-        if (!Storage::disk('public')->exists($template->file_path)) {
-            throw new \Exception("File tidak ditemukan");
-        }
-
-        // Konversi DOCX ke PDF
-        $phpWord = \PhpOffice\PhpWord\IOFactory::load($filePath);
-        
-        // Simpan sementara sebagai HTML
-        $tempHtml = tempnam(sys_get_temp_dir(), 'tpl') . '.html';
-        $phpWord->save($tempHtml, 'HTML');
-
-        // Konversi HTML ke PDF
-        $dompdf = new \Dompdf\Dompdf();
-        $dompdf->setOptions([
-            'isHtml5ParserEnabled' => true,
-            'isRemoteEnabled' => true,
-            'defaultFont' => 'Arial'
-        ]);
-        
-        $dompdf->loadHtml(file_get_contents($tempHtml));
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        // Hapus file temporary
-        unlink($tempHtml);
-
-        // Tampilkan PDF di browser
-        return response()->make(
-            $dompdf->output(),
-            200,
-            [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="preview.pdf"'
-            ]
-        );
-
-    } catch (\Exception $e) {
-        return redirect()->back()
-            ->with('error', 'Gagal menampilkan preview: ' . $e->getMessage());
-    }
-}
 }

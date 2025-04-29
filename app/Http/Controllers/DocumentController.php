@@ -6,12 +6,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\TemplateProcessor;
 use Carbon\Carbon;
 use Spatie\PdfToText\Pdf;
+use Dompdf\Dompdf;
+use App\Models\Template;
 
 class DocumentController extends Controller
 {
@@ -21,63 +25,107 @@ class DocumentController extends Controller
     public function uploadTemplate(Request $request)
     {
         try {
-            // Validasi file
-            $request->validate([
-                'file' => 'required|file|mimes:doc,docx|max:5120', // 5MB max
+            $user = Auth::user();
+
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|mimes:doc,docx|max:51200', // 50MB max
             ]);
 
-            // Nonaktifkan template lama
-            DB::update('UPDATE dokumen_template SET active = 0 WHERE active = 1');
+            if ($validator->fails()) {
+                return redirect()->back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
 
-            if (!$request->hasFile('file')) {
+            // Nonaktifkan template sebelumnya
+            Template::where('id_users', $user->id_users)
+                    ->update(['active' => 0]);
+
+            $file = $request->file('file');
+            $uuid = Str::uuid();
+            $originalName = $file->getClientOriginalName();
+            $storedName = $uuid . '---' . $originalName;
+            $filePath = 'templates/' . $storedName;
+
+            // Simpan file
+            Storage::disk('public')->put($filePath, file_get_contents($file));
+
+            // Simpan ke database
+            Template::create([
+                'id_dokumen' => $uuid,
+                'id_users' => $user->id_users,
+                'file_path' => $filePath,
+                'active' => 1,
+                'created_by' => $user->id_users
+            ]);
+
+            return redirect()->back()
+                ->with('success', 'Template berhasil diupload!');
+
+        } catch (\Exception $e) {
+            \Log::error('Error uploading template: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Gagal upload template: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Upload template via API
+     */
+    public function uploadTemplateApi(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $validator = Validator::make($request->all(), [
+                'file' => 'required|mimes:doc,docx|max:51200', // 50MB max
+            ]);
+
+            if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'File template tidak ditemukan'
+                    'message' => 'Validasi gagal',
+                    'errors' => $validator->errors()
                 ], 400);
             }
 
-            $file = $request->file('file');
-            $filename = time() . '-' . preg_replace('/[^a-zA-Z0-9.]/', '_', $file->getClientOriginalName());
-            
-            // Siapkan direktori dan pindahkan file
-            $templateDir = public_path('templates');
-            if (!File::exists($templateDir)) {
-                File::makeDirectory($templateDir, 0755, true);
-            }
-            
-            $file->move($templateDir, $filename);
-            $filePath = 'templates/' . $filename;
+            // Nonaktifkan template sebelumnya
+            Template::where('id_users', $user->id_users)
+                    ->update(['active' => 0]);
 
-            // Simpan info template ke database
-            $templateId = (string) time();
-            DB::insert(
-                'INSERT INTO dokumen_template
-                (id_dokumen, id_users, file_path, active, created_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)',
-                [
-                    $templateId,
-                    auth()->id() ?? null,
-                    $filePath,
-                    1,
-                    auth()->id() ?? null,
-                    now()
-                ]
-            );
+            $file = $request->file('file');
+            $uuid = Str::uuid();
+            $originalName = $file->getClientOriginalName();
+            $storedName = $uuid . '---' . $originalName;
+            $filePath = 'templates/' . $storedName;
+
+            // Simpan file
+            Storage::disk('public')->put($filePath, file_get_contents($file));
+
+            // Simpan ke database
+            Template::create([
+                'id_dokumen' => $uuid,
+                'id_users' => $user->id_users,
+                'file_path' => $filePath,
+                'active' => 1,
+                'created_by' => $user->id_users
+            ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Template berhasil diupload',
                 'data' => [
-                    'template_id' => $templateId
+                    'id_dokumen' => $uuid,
+                    'file_path' => $filePath
                 ]
             ]);
 
-        } catch (\Exception $error) {
-            \Log::error('Error uploading template: ' . $error->getMessage());
+        } catch (\Exception $e) {
+            \Log::error('Error uploading template: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengupload template',
-                'error' => $error->getMessage()
+                'message' => 'Gagal upload template',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -88,7 +136,10 @@ class DocumentController extends Controller
     public function getTemplates()
     {
         try {
-            $templates = DB::select('SELECT * FROM dokumen_template WHERE active = 1');
+            $user = Auth::user();
+            $templates = Template::where('id_users', $user->id_users)
+                                 ->where('active', 1)
+                                 ->get();
 
             return response()->json([
                 'success' => true,
@@ -106,67 +157,133 @@ class DocumentController extends Controller
     }
 
     /**
-     * Preview dokumen dalam format PDF
-     */
-    public function previewDocument($id)
-    {
-        try {
-            $templates = DB::select(
-                'SELECT * FROM dokumen_template WHERE id_dokumen = ? AND active = 1',
-                [$id]
-            );
-    
-            if (empty($templates)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Template tidak ditemukan'
-                ], 404);
-            }
-    
-            $filePath = public_path($templates[0]->file_path);
-            if (!File::exists($filePath)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'File tidak ditemukan'
-                ], 404);
-            }
-
-            // Untuk konversi ke PDF, gunakan package seperti LibreOffice atau alternatif lain
-            // Di sini kita contohkan dengan mengembalikan file asli saja
-            return response()->file($filePath);
-    
-        } catch (\Exception $error) {
-            \Log::error('Error: ' . $error->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memuat preview dokumen',
-                'error' => $error->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Hapus template (soft delete)
+     * Hapus template
      */
     public function deleteTemplate($id)
     {
         try {
-            DB::update(
-                'UPDATE dokumen_template SET active = 0 WHERE id_dokumen = ?',
-                [$id]
-            );
+            $user = Auth::user();
+            $template = Template::where('id_dokumen', $id)
+                              ->where('id_users', $user->id_users)
+                              ->firstOrFail();
+
+            // Hapus file fisik
+            if (Storage::disk('public')->exists($template->file_path)) {
+                Storage::disk('public')->delete($template->file_path);
+            }
+
+            // Hapus dari database
+            $template->delete();
+
+            return redirect()->back()
+                ->with('success', 'Template berhasil dihapus');
+
+        } catch (\Exception $e) {
+            \Log::error('Error deleting template: ' . $e->getMessage());
+            return redirect()->back()
+                ->with('error', 'Gagal menghapus template: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Hapus template via API
+     */
+    public function deleteTemplateApi($id)
+    {
+        try {
+            $user = Auth::user();
+            $template = Template::where('id_dokumen', $id)
+                              ->where('id_users', $user->id_users)
+                              ->firstOrFail();
+
+            // Hapus file fisik
+            if (Storage::disk('public')->exists($template->file_path)) {
+                Storage::disk('public')->delete($template->file_path);
+            }
+
+            // Hapus dari database
+            $template->delete();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Template berhasil dihapus'
             ]);
 
-        } catch (\Exception $error) {
-            \Log::error('Error deleting template: ' . $error->getMessage());
+        } catch (\Exception $e) {
+            \Log::error('Error deleting template: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal menghapus template',
-                'error' => $error->getMessage()
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Preview template
+     */
+    public function previewTemplate($id)
+    {
+        try {
+            $user = Auth::user();
+            $template = Template::where('id_dokumen', $id)
+                              ->where('id_users', $user->id_users)
+                              ->firstOrFail();
+    
+            if (!Storage::disk('public')->exists($template->file_path)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File template tidak ditemukan di storage'
+                ], 404);
+            }
+    
+            // Gunakan Google Docs Viewer untuk preview
+            $fileUrl = asset('storage/' . $template->file_path);
+            return redirect('https://docs.google.com/viewer?url=' . urlencode($fileUrl) . '&embedded=true');
+            
+        } catch (\Exception $e) {
+            \Log::error('Error previewing template: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menampilkan preview: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download template
+     */
+    public function downloadTemplate($id)
+    {
+        try {
+            $user = Auth::user();
+            $template = Template::where('id_dokumen', $id)
+                              ->where('id_users', $user->id_users)
+                              ->firstOrFail();
+
+            // Validasi file
+            if (!Storage::disk('public')->exists($template->file_path)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File template tidak ditemukan di storage'
+                ], 404);
+            }
+
+            // Dapatkan nama file asli
+            $pathParts = explode('---', $template->file_path);
+            $originalName = count($pathParts) > 1 ? end($pathParts) : basename($template->file_path);
+
+            // Kembalikan file untuk didownload
+            return Storage::disk('public')->download(
+                $template->file_path,
+                $originalName
+            );
+
+        } catch (\Exception $e) {
+            \Log::error('Error downloading template: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengunduh template: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -186,11 +303,13 @@ class DocumentController extends Controller
             }
    
             // Ambil template aktif terbaru
-            $templates = DB::select(
-                'SELECT * FROM dokumen_template WHERE active = 1 ORDER BY created_at DESC LIMIT 1'
-            );
+            $user = Auth::user();
+            $template = Template::where('id_users', $user->id_users)
+                              ->where('active', 1)
+                              ->latest()
+                              ->first();
    
-            if (empty($templates)) {
+            if (!$template) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Template sertifikat tidak ditemukan'
@@ -227,11 +346,8 @@ class DocumentController extends Controller
                 ], 404);
             }
    
-            // Di sini gunakan library untuk mengolah template docx
-            // Misalnya dengan PhpWord (kamu perlu menginstall package ini)
-            // composer require phpoffice/phpword
-            
-            $templatePath = public_path($templates[0]->file_path);
+            // Generate sertifikat menggunakan template Word
+            $templatePath = storage_path('app/public/' . $template->file_path);
             
             // Buat direktori untuk sertifikat jika belum ada
             $certificatesDir = public_path('certificates');
@@ -243,24 +359,55 @@ class DocumentController extends Controller
             $docxName = 'sertifikat_' . Str::slug($peserta[0]->nama) . '_' . time() . '.docx';
             $docxPath = $certificatesDir . '/' . $docxName;
             
-            // Di sini seharusnya ada kode untuk mengolah template docx
-            // Karena ini kompleks dan membutuhkan library tertentu, kita skip detailnya
-            
-            // Simpan path sertifikat di database
-            $dbPath = 'certificates/' . $docxName;
-            DB::update(
-                'UPDATE peserta_magang SET sertifikat_path = ? WHERE id_magang = ?',
-                [$dbPath, $id_magang]
-            );
-   
-            return response()->json([
-                'success' => true,
-                'message' => 'Sertifikat berhasil dibuat',
-                'data' => [
-                    'sertifikat_path' => $dbPath,
-                    'nama_peserta' => $peserta[0]->nama
-                ]
-            ]);
+            // Proses template dengan data peserta
+            try {
+                $templateProcessor = new TemplateProcessor($templatePath);
+                
+                // Set data peserta ke template
+                $templateProcessor->setValue('NAMA', $peserta[0]->nama ?? '');
+                $templateProcessor->setValue('NIM', $peserta[0]->nomor_induk ?? '');
+                $templateProcessor->setValue('JURUSAN', $peserta[0]->jurusan ?? '');
+                $templateProcessor->setValue('INSTITUSI', $peserta[0]->institusi ?? '');
+                $templateProcessor->setValue('TANGGAL_MULAI', $this->formatTanggal($peserta[0]->tanggal_mulai ?? now()));
+                $templateProcessor->setValue('TANGGAL_SELESAI', $this->formatTanggal($peserta[0]->tanggal_selesai ?? now()));
+                $templateProcessor->setValue('MENTOR', $peserta[0]->nama_mentor ?? '');
+                $templateProcessor->setValue('NIP_MENTOR', $peserta[0]->nip_mentor ?? '');
+                
+                // Jika ada penilaian
+                if (isset($peserta[0]->id_penilaian)) {
+                    $rataRata = $this->calculateAverageScore($peserta[0]);
+                    $templateProcessor->setValue('NILAI_RATA', $rataRata);
+                    $templateProcessor->setValue('NILAI_AKREDITASI', $this->getAkreditasi($rataRata));
+                }
+                
+                // Simpan dokumen hasil
+                $templateProcessor->saveAs($docxPath);
+                
+                // Simpan path sertifikat di database
+                $dbPath = 'certificates/' . $docxName;
+                DB::update(
+                    'UPDATE peserta_magang SET sertifikat_path = ? WHERE id_magang = ?',
+                    [$dbPath, $id_magang]
+                );
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sertifikat berhasil dibuat',
+                    'data' => [
+                        'sertifikat_path' => $dbPath,
+                        'nama_peserta' => $peserta[0]->nama,
+                        'download_url' => route('sertifikat.download', ['id' => $id_magang])
+                    ]
+                ]);
+                
+            } catch (\Exception $e) {
+                \Log::error('Error generating certificate: ' . $e->getMessage());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal memproses template sertifikat',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
    
         } catch (\Exception $error) {
             \Log::error('Error detail: ' . $error->getMessage());
@@ -280,7 +427,7 @@ class DocumentController extends Controller
         try {
             // Ambil path file sertifikat
             $peserta = DB::select(
-                'SELECT sertifikat_path FROM peserta_magang WHERE id_magang = ?',
+                'SELECT sertifikat_path, nama FROM peserta_magang WHERE id_magang = ?',
                 [$id_magang]
             );
 
@@ -293,7 +440,9 @@ class DocumentController extends Controller
 
             // Download file
             $filePath = public_path($peserta[0]->sertifikat_path);
-            return response()->download($filePath);
+            $fileName = 'Sertifikat_' . Str::slug($peserta[0]->nama) . '.docx';
+            
+            return response()->download($filePath, $fileName);
 
         } catch (\Exception $error) {
             \Log::error('Error downloading certificate: ' . $error->getMessage());
@@ -311,7 +460,7 @@ class DocumentController extends Controller
     public function generateReceipt(Request $request)
     {
         try {
-            $request->validate([
+            $validator = Validator::make($request->all(), [
                 'nomor_surat' => 'required|string',
                 'tanggal' => 'required|date',
                 'penerima' => 'required|string',
@@ -319,20 +468,111 @@ class DocumentController extends Controller
                 'departemen' => 'required|string',
                 'daftar_barang' => 'required|array'
             ]);
+            
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validasi gagal',
+                    'errors' => $validator->errors()
+                ], 400);
+            }
            
-            // Di sini implementasi untuk generate receipt
-            // ...
-           
+            // Buat dokumen Word baru
+            $phpWord = new PhpWord();
+            $section = $phpWord->addSection();
+            
+            // Judul
+            $section->addText('TANDA TERIMA', ['bold' => true, 'size' => 16], ['alignment' => 'center']);
+            $section->addText('No: ' . $request->nomor_surat, ['size' => 12], ['alignment' => 'center']);
+            $section->addTextBreak();
+            
+            // Data penerima
+            $section->addText('Yang bertanda tangan di bawah ini:', ['size' => 12]);
+            $section->addTextBreak();
+            
+            $tableStyle = ['borderSize' => 0, 'cellMargin' => 80];
+            $table = $section->addTable($tableStyle);
+            
+            $table->addRow();
+            $table->addCell(2000)->addText('Nama', ['size' => 12]);
+            $table->addCell(500)->addText(':', ['size' => 12]);
+            $table->addCell(5000)->addText($request->penerima, ['size' => 12]);
+            
+            $table->addRow();
+            $table->addCell(2000)->addText('Jabatan', ['size' => 12]);
+            $table->addCell(500)->addText(':', ['size' => 12]);
+            $table->addCell(5000)->addText($request->jabatan, ['size' => 12]);
+            
+            $table->addRow();
+            $table->addCell(2000)->addText('Departemen', ['size' => 12]);
+            $table->addCell(500)->addText(':', ['size' => 12]);
+            $table->addCell(5000)->addText($request->departemen, ['size' => 12]);
+            
+            $section->addTextBreak();
+            $section->addText('Telah menerima barang-barang sebagai berikut:', ['size' => 12]);
+            $section->addTextBreak();
+            
+            // Tabel daftar barang
+            $tableStyle = ['borderSize' => 6, 'borderColor' => '000000', 'cellMargin' => 80];
+            $tableHeaderStyle = ['bold' => true, 'size' => 12];
+            $cellHeaderStyle = ['bgColor' => 'eeeeee', 'valign' => 'center'];
+            
+            $table = $section->addTable($tableStyle);
+            
+            // Header tabel
+            $table->addRow();
+            $table->addCell(800, $cellHeaderStyle)->addText('No', $tableHeaderStyle, ['alignment' => 'center']);
+            $table->addCell(5000, $cellHeaderStyle)->addText('Nama Barang', $tableHeaderStyle, ['alignment' => 'center']);
+            $table->addCell(1500, $cellHeaderStyle)->addText('Jumlah', $tableHeaderStyle, ['alignment' => 'center']);
+            $table->addCell(2000, $cellHeaderStyle)->addText('Satuan', $tableHeaderStyle, ['alignment' => 'center']);
+            
+            // Isi tabel
+            $no = 1;
+            foreach ($request->daftar_barang as $barang) {
+                $table->addRow();
+                $table->addCell(800)->addText($no, ['size' => 12], ['alignment' => 'center']);
+                $table->addCell(5000)->addText($barang['nama'] ?? '-', ['size' => 12]);
+                $table->addCell(1500)->addText($barang['jumlah'] ?? '0', ['size' => 12], ['alignment' => 'center']);
+                $table->addCell(2000)->addText($barang['satuan'] ?? '-', ['size' => 12], ['alignment' => 'center']);
+                $no++;
+            }
+            
+            $section->addTextBreak();
+            
+            // Tanggal dan tanda tangan
+            $tanggal = Carbon::parse($request->tanggal)->format('d F Y');
+            $section->addText($tanggal, ['size' => 12], ['alignment' => 'right']);
+            $section->addTextBreak(3);
+            $section->addText($request->penerima, ['size' => 12, 'bold' => true], ['alignment' => 'right']);
+            
+            // Simpan dokumen
+            $fileName = 'tanda_terima_' . time() . '.docx';
+            $filePath = 'receipts/' . $fileName;
+            $fullPath = storage_path('app/public/' . $filePath);
+            
+            // Pastikan direktori ada
+            $dir = storage_path('app/public/receipts');
+            if (!File::exists($dir)) {
+                File::makeDirectory($dir, 0755, true);
+            }
+            
+            $objWriter = IOFactory::createWriter($phpWord, 'Word2007');
+            $objWriter->save($fullPath);
+            
             return response()->json([
                 'success' => true,
-                'message' => 'Receipt berhasil digenerate'
+                'message' => 'Tanda terima berhasil dibuat',
+                'data' => [
+                    'file_path' => $filePath,
+                    'download_url' => asset('storage/' . $filePath)
+                ]
             ]);
 
         } catch (\Exception $error) {
             \Log::error('Error generating receipt: ' . $error->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal membuat receipt',
+                'message' => 'Gagal membuat tanda terima',
                 'error' => $error->getMessage()
             ], 500);
         }
