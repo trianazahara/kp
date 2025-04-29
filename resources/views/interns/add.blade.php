@@ -334,8 +334,8 @@
         });
         
         // Set min date for tanggal_masuk to today
-        const today = new Date().toISOString().split('T')[0];
-        tanggalMasukInput.min = today;
+        //const today = new Date().toISOString().split('T')[0];
+        //tanggalMasukInput.min = today;
         
         // Show/hide sections based on participant type
         jenisPesertaSelect.addEventListener('change', function() {
