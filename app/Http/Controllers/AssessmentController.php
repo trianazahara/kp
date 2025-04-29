@@ -671,34 +671,152 @@ class AssessmentController extends Controller
             setlocale(LC_TIME, 'id_ID.utf8', 'id_ID', 'Indonesia');
             
             // Membuat fungsi untuk mengubah nilai numerik menjadi teks dalam Bahasa Indonesia
-            $nilaiKeText = function($nilai) {
-                // Handle nilai khusus
-                if ($nilai == 0) return "NOL";
-                if ($nilai == 10) return "SEPULUH";
-                if ($nilai == 98) return "SEMBILAN PULUH DELAPAN";
-                if ($nilai == 100) return "SERATUS";
-                
-                // Untuk nilai standar 1-9
-                $penilaian = [
-                    1 => "SATU", 
-                    2 => "DUA", 
-                    3 => "TIGA", 
-                    4 => "EMPAT", 
-                    5 => "LIMA", 
-                    6 => "ENAM", 
-                    7 => "TUJUH", 
-                    8 => "DELAPAN", 
-                    9 => "SEMBILAN"
-                ];
-                
-                // Check apakah nilai ada di daftar
-                if (isset($penilaian[(int)$nilai])) {
-                    return $penilaian[(int)$nilai];
-                }
-                
-                // Jika tidak ada di daftar, tampilkan angka asli
-                return (string) $nilai;
-            };
+            // Membuat fungsi untuk mengubah nilai numerik menjadi teks dalam Bahasa Indonesia (dengan desimal)
+// Membuat fungsi untuk mengubah nilai numerik menjadi teks dalam Bahasa Indonesia (dengan desimal)
+$nilaiKeText = function($nilai) {
+    // Handle nilai 0
+    if ($nilai == 0) return "Nol";
+    
+    // Pisahkan angka bulat dan desimal
+    $parts = explode('.', number_format($nilai, 2, '.', ''));
+    $angkaBulat = (int)$parts[0];
+    $desimal = isset($parts[1]) ? $parts[1] : null;
+    
+    // Validasi angka bulat 0-9999
+    if ($angkaBulat < 0 || $angkaBulat > 9999) {
+        return (string)$nilai; // Return sebagai string jika di luar rentang
+    }
+    
+    $satuan = [
+        0 => '',
+        1 => 'Satu',
+        2 => 'Dua',
+        3 => 'Tiga',
+        4 => 'Empat',
+        5 => 'Lima',
+        6 => 'Enam',
+        7 => 'Tujuh',
+        8 => 'Delapan',
+        9 => 'Sembilan'
+    ];
+    
+    $belasan = [
+        11 => 'Sebelas',
+        12 => 'Dua Belas',
+        13 => 'Tiga Belas',
+        14 => 'Empat Belas',
+        15 => 'Lima Belas',
+        16 => 'Enam Belas',
+        17 => 'Tujuh Belas',
+        18 => 'Delapan Belas',
+        19 => 'Sembilan Belas'
+    ];
+    
+    $puluhan = [
+        1 => 'Sepuluh',
+        2 => 'Dua Puluh',
+        3 => 'Tiga Puluh',
+        4 => 'Empat Puluh',
+        5 => 'Lima Puluh',
+        6 => 'Enam Puluh',
+        7 => 'Tujuh Puluh',
+        8 => 'Delapan Puluh',
+        9 => 'Sembilan Puluh'
+    ];
+    
+    // Fungsi helper untuk angka 1-99
+    $terbilang1sampai99 = function($n) use ($satuan, $belasan, $puluhan) {
+        // Angka spesial
+        if ($n == 0) return '';
+        if ($n == 10) return 'Sepuluh';
+        
+        // Angka 11-19
+        if ($n >= 11 && $n <= 19) {
+            return $belasan[$n];
+        }
+        
+        // Angka 1-9
+        if ($n >= 1 && $n <= 9) {
+            return $satuan[$n];
+        }
+        
+        // Angka 20-99
+        if ($n >= 20 && $n <= 99) {
+            $puluh = (int)($n / 10);
+            $sisa = $n % 10;
+            
+            if ($sisa > 0) {
+                return $puluhan[$puluh] . ' ' . $satuan[$sisa];
+            } else {
+                return $puluhan[$puluh];
+            }
+        }
+        
+        return '';
+    };
+    
+    // Konversi angka bulat
+    $hasilBulat = "";
+    
+    // Ribuan (1000-9999)
+    if ($angkaBulat >= 1000 && $angkaBulat <= 9999) {
+        $ribu = (int)($angkaBulat / 1000);
+        $sisa = $angkaBulat % 1000;
+        
+        $hasilBulat = ($ribu == 1) ? 'Seribu' : $satuan[$ribu] . ' Ribu';
+        
+        if ($sisa > 0) {
+            // Ratusan (100-999)
+            $ratus = (int)($sisa / 100);
+            $sisa = $sisa % 100;
+            
+            if ($ratus > 0) {
+                $hasilBulat .= ' ' . (($ratus == 1) ? 'Seratus' : $satuan[$ratus] . ' Ratus');
+            }
+            
+            if ($sisa > 0) {
+                $hasilBulat .= ' ' . $terbilang1sampai99($sisa);
+            }
+        }
+    }
+    // Ratusan (100-999)
+    else if ($angkaBulat >= 100 && $angkaBulat <= 999) {
+        $ratus = (int)($angkaBulat / 100);
+        $sisa = $angkaBulat % 100;
+        
+        $hasilBulat = ($ratus == 1) ? 'Seratus' : $satuan[$ratus] . ' Ratus';
+        
+        if ($sisa > 0) {
+            $hasilBulat .= ' ' . $terbilang1sampai99($sisa);
+        }
+    }
+    // Angka 1-99
+    else {
+        $hasilBulat = $terbilang1sampai99($angkaBulat);
+    }
+    
+    // Konversi angka desimal jika ada
+    if ($desimal && $desimal != '00') {
+        // Untuk desimal, baca per digit
+        $hasilDesimal = '';
+        
+        // Jika desimal dimulai dengan 0, baca "Nol"
+        if ($desimal[0] == '0') {
+            $hasilDesimal .= 'Nol ';
+            if (isset($desimal[1]) && $desimal[1] != '0') {
+                $hasilDesimal .= $satuan[(int)$desimal[1]];
+            }
+        } else {
+            // Baca 2 digit desimal sebagai angka biasa
+            $desimalInt = (int)$desimal;
+            $hasilDesimal = $terbilang1sampai99($desimalInt);
+        }
+        
+        return $hasilBulat . ' Koma ' . $hasilDesimal;
+    }
+    
+    return $hasilBulat;
+};
             
             // Format tanggal dengan bahasa Indonesia (mengganti "March" menjadi "Maret", dll)
             $formatTanggalIndonesia = function($tanggal) {
@@ -757,7 +875,7 @@ class AssessmentController extends Controller
                                     ($peserta->jurusan_siswa ?? '-'));
             
             // Nomor dan tanggal naskah
-            $templateProcessor->setValue('{nomor_naskah}', 'SKT/' . date('Y') . '/' . $id_magang);
+            $templateProcessor->setValue('{nomor_naskah}', '{nomor_naskah}');
             $templateProcessor->setValue('{tanggal_naskah}', $formatTanggalIndonesia(Carbon::now()));
             $templateProcessor->setValue('{ttd_pengirim}', '');
             
@@ -815,10 +933,11 @@ class AssessmentController extends Controller
             $templateProcessor->setValue('{nilai_kebersihan_teks}', $nilaiKeText($nilai_kebersihan));
             
             // Jumlah dan rata-rata
+            // Jumlah dan rata-rata
             $templateProcessor->setValue('{jumlah}', number_format($jumlah, 2));
-            $templateProcessor->setValue('{jumlah_teks}', number_format($jumlah, 2));
+            $templateProcessor->setValue('{jumlah_teks}', $nilaiKeText($jumlah));
             $templateProcessor->setValue('{rata_rata}', number_format($rata_rata, 2));
-            $templateProcessor->setValue('{rata_rata_teks}', number_format($rata_rata, 2));
+            $templateProcessor->setValue('{rata_rata_teks}', $nilaiKeText($rata_rata));
             
             // Nilai akreditasi berdasarkan rata-rata
             $akreditasi = "";

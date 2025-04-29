@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="p-4 md:p-6 lg:p-8 w-full">
+<div class="p-4 md:p- lg:p-9 w-full">
     <!-- Header -->
     <div class="bg-gradient-to-r from-emerald-400 via-cyan-400 to-yellow-200 rounded-lg shadow-md p-4 mb-6">
         <div class="flex justify-between items-center">

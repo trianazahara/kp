@@ -4,8 +4,8 @@ $notificationCount = $notificationCount ?? 0;
 $notifications = $notifications ?? [];
 ?>
 
-<header class="fixed top-0 right-0 left-64 bg-white border-b z-10">
-    <div class="flex justify-end items-center p-3 mr-4">
+<header class="fixed top-0 right-0 left-64 bg-white border-b z-8">
+    <div class="flex justify-end items-center p-1 mr-4">
         <div class="flex items-center gap-3">
             <!-- Notification Dropdown -->
             <div class="relative" id="notification-dropdown">
