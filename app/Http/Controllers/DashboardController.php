@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\PesertaMagang;
 use App\Models\Notifikasi;
+use App\Models\Bidang;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -19,14 +21,15 @@ class DashboardController extends Controller
             // Buat instance InternController
             $internController = new InternController();
             
-            // Ambil data statistik (ini mengembalikan response JSON)
+            // Ambil data statistik
             $response = $internController->getDetailedStats(new Request());
             
             // Konversi response JSON menjadi array PHP
             $statsData = json_decode($response->getContent(), true);
             
             // Log untuk debugging
-            Log::info('Dashboard Stats Data:', ['data' => $statsData ?? ['empty' => true]]);            
+            Log::info('Dashboard Stats Data:', ['data' => $statsData ?? ['empty' => true]]);
+            
             // Periksa apakah data statistik valid
             if (!is_array($statsData) || !isset($statsData['activeInterns'])) {
                 // Jika data tidak valid, gunakan data default
@@ -37,8 +40,14 @@ class DashboardController extends Controller
                 $stats = $statsData;
             }
             
+            // Ambil data peserta magang aktif terbaru (5 data)
+            $activeInterns = $this->getActiveInterns();
+            
             // Kirim data ke view
-            return view('dashboard', compact('stats'));
+            return view('dashboard', [
+                'stats' => $stats,
+                'activeInterns' => $activeInterns
+            ]);
             
         } catch (\Exception $e) {
             // Log error
@@ -50,7 +59,56 @@ class DashboardController extends Controller
             $stats = $this->getDefaultStats();
             
             // Kirim data default ke view
-            return view('dashboard', compact('stats'));
+            return view('dashboard', [
+                'stats' => $stats,
+                'activeInterns' => []
+            ])->with('error', 'Terjadi kesalahan saat memuat data dashboard.');
+        }
+    }
+    
+    /**
+     * Mendapatkan data peserta magang aktif untuk ditampilkan di dashboard
+     */
+    private function getActiveInterns()
+    {
+        try {
+            // Ambil 5 peserta magang aktif terbaru
+            $activeInterns = PesertaMagang::select('peserta_magang.*', 'b.nama_bidang')
+                ->leftJoin('bidang as b', 'peserta_magang.id_bidang', '=', 'b.id_bidang')
+                ->whereIn('peserta_magang.status', ['aktif', 'almost'])
+                ->orderBy('peserta_magang.created_at', 'desc')
+                ->limit(5)
+                ->get();
+                
+            return $activeInterns;
+        } catch (\Exception $e) {
+            Log::error('Error getting active interns: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * API endpoint untuk refresh data dashboard secara asinkron
+     */
+    public function refreshData()
+    {
+        try {
+            // Buat instance InternController
+            $internController = new InternController();
+            
+            // Ambil data statistik
+            $response = $internController->getDetailedStats(new Request());
+            
+            // Ambil data JSON dari response
+            $stats = json_decode($response->getContent(), true);
+            
+            return response()->json($stats);
+        } catch (\Exception $e) {
+            Log::error('Error refreshing dashboard data: ' . $e->getMessage());
+            return response()->json([
+                'error' => 'Failed to refresh dashboard data',
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
     
