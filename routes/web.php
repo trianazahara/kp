@@ -64,6 +64,11 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/download-receipt', [InternController::class, 'generateReceipt'])->name('download-receipt');
     });
     
+    Route::prefix('notifications')->name('notifications.')->group(function() {
+        Route::get('/', [App\Http\Controllers\NotificationController::class, 'index'])->name('index');
+        Route::get('/{id}', [App\Http\Controllers\NotificationController::class, 'show'])->name('show');
+    });
+    
     // Riwayat
     Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
     Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');
