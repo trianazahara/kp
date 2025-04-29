@@ -38,6 +38,7 @@ if (auth()->check()) {
 }
 ?>
 
+<!-- Only changed z-index here from z-8 to z-50 -->
 <header class="fixed top-0 right-0 left-64 bg-white border-b z-50">
     <div class="flex justify-end items-center p-1 mr-4">
         <div class="flex items-center gap-3">
@@ -54,7 +55,7 @@ if (auth()->check()) {
                     </span>
                 </button>
 
-                <!-- Notification Dropdown Menu -->
+                <!-- Added z-50 here to ensure the menu appears on top -->
                 <div class="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 hidden" id="notification-menu">
                     <div class="px-4 py-2 border-b border-gray-200">
                         <h3 class="text-lg font-semibold">Notifikasi</h3>
@@ -119,7 +120,7 @@ if (auth()->check()) {
                     </div>
                 </button>
 
-                <!-- Profile Dropdown Menu -->
+                <!-- Added z-50 here to ensure the menu appears on top -->
                 <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 hidden" id="profile-dropdown">
                     <a
                         href="{{ route('settings.index') }}"
@@ -143,132 +144,22 @@ if (auth()->check()) {
     </div>
 </header>
 
-<style>
-/* Add this style section to ensure popup appears on top */
-#notification-dropdown,
-#profile-menu {
-    position: relative;
-    z-index: 100;
-}
-
-#notification-menu,
-#profile-dropdown {
-    z-index: 1000;
-}
-
-/* Optional: add a backdrop to prevent interactions with underlying elements */
-.dropdown-backdrop {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 90;
-    background-color: transparent;
-}
-</style>
-
 <script>
     // Toggle notification dropdown
     function toggleNotificationDropdown() {
         const notificationMenu = document.getElementById('notification-menu');
         const profileMenu = document.getElementById('profile-dropdown');
-        
-        // Toggle notification menu
         notificationMenu.classList.toggle('hidden');
+        if (profileMenu) {
+            profileMenu.classList.add('hidden');
+            document.getElementById('profile-arrow').classList.remove('rotate-180');
+        }
         
-        // Add/remove backdrop when opening/closing the dropdown
+        // Optional: Refresh notifications when dropdown is opened
         if (!notificationMenu.classList.contains('hidden')) {
-            // Create backdrop if it doesn't exist
-            if (!document.querySelector('.dropdown-backdrop')) {
-                const backdrop = document.createElement('div');
-                backdrop.classList.add('dropdown-backdrop');
-                document.body.appendChild(backdrop);
-            }
-            
-            // Close profile dropdown if open
-            if (profileMenu) {
-                profileMenu.classList.add('hidden');
-                document.getElementById('profile-arrow').classList.remove('rotate-180');
-            }
-            
-            // Refresh notifications
             refreshNotifications();
-        } else {
-            // Remove backdrop when closing
-            const backdrop = document.querySelector('.dropdown-backdrop');
-            if (backdrop) backdrop.remove();
         }
     }
-    
-    // Toggle profile dropdown
-    function toggleProfileDropdown() {
-        const profileMenu = document.getElementById('profile-dropdown');
-        const notificationMenu = document.getElementById('notification-menu');
-        const profileArrow = document.getElementById('profile-arrow');
-        
-        // Toggle profile menu
-        profileMenu.classList.toggle('hidden');
-        
-        // Add/remove backdrop when opening/closing the dropdown
-        if (!profileMenu.classList.contains('hidden')) {
-            // Create backdrop if it doesn't exist
-            if (!document.querySelector('.dropdown-backdrop')) {
-                const backdrop = document.createElement('div');
-                backdrop.classList.add('dropdown-backdrop');
-                document.body.appendChild(backdrop);
-            }
-            
-            // Close notification dropdown if open
-            notificationMenu.classList.add('hidden');
-            
-            // Toggle arrow rotation
-            profileArrow.classList.toggle('rotate-180');
-        } else {
-            // Remove backdrop when closing
-            const backdrop = document.querySelector('.dropdown-backdrop');
-            if (backdrop) backdrop.remove();
-            
-            // Reset arrow rotation
-            profileArrow.classList.remove('rotate-180');
-        }
-    }
-    
-    // Close dropdowns when clicking outside
-    document.addEventListener('click', function(event) {
-        const notificationDropdown = document.getElementById('notification-dropdown');
-        const profileDropdown = document.getElementById('profile-menu');
-        const notificationMenu = document.getElementById('notification-menu');
-        const profileMenu = document.getElementById('profile-dropdown');
-        const backdrop = document.querySelector('.dropdown-backdrop');
-
-        // If clicking outside both dropdowns
-        if ((!notificationDropdown || !notificationDropdown.contains(event.target)) && 
-            (!profileDropdown || !profileDropdown.contains(event.target)) &&
-            backdrop) {
-            
-            // Close notification menu
-            if (notificationMenu) {
-                notificationMenu.classList.add('hidden');
-            }
-            
-            // Close profile menu
-            if (profileMenu) {
-                profileMenu.classList.add('hidden');
-            }
-            
-            // Reset profile arrow
-            const profileArrow = document.getElementById('profile-arrow');
-            if (profileArrow) {
-                profileArrow.classList.remove('rotate-180');
-            }
-            
-            // Remove backdrop
-            backdrop.remove();
-        }
-    });
-
-    // Rest of your existing JavaScript functions...
     
     // Refresh notifications
     function refreshNotifications() {
@@ -374,9 +265,40 @@ if (auth()->check()) {
     document.addEventListener('DOMContentLoaded', function() {
         // Refresh notifications every 30 seconds
         setInterval(refreshNotifications, 30000);
-        
-        // Debug function
-        checkProfileImage();
+    });
+
+    // Toggle profile dropdown
+    function toggleProfileDropdown() {
+        const profileMenu = document.getElementById('profile-dropdown');
+        const notificationMenu = document.getElementById('notification-menu');
+        const profileArrow = document.getElementById('profile-arrow');
+        profileMenu.classList.toggle('hidden');
+        notificationMenu.classList.add('hidden');
+        profileArrow.classList.toggle('rotate-180');
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(event) {
+        const notificationDropdown = document.getElementById('notification-dropdown');
+        const profileDropdown = document.getElementById('profile-menu');
+        const notificationMenu = document.getElementById('notification-menu');
+        const profileMenu = document.getElementById('profile-dropdown');
+
+        if (notificationDropdown && !notificationDropdown.contains(event.target)) {
+            if (notificationMenu) {
+                notificationMenu.classList.add('hidden');
+            }
+        }
+
+        if (profileDropdown && !profileDropdown.contains(event.target)) {
+            if (profileMenu) {
+                profileMenu.classList.add('hidden');
+            }
+            const profileArrow = document.getElementById('profile-arrow');
+            if (profileArrow) {
+                profileArrow.classList.remove('rotate-180');
+            }
+        }
     });
 
     // Debug function untuk membantu troubleshooting
@@ -388,4 +310,9 @@ if (auth()->check()) {
         };
         console.log('User data:', user);
     }
+    
+    // Panggil fungsi ini saat halaman dimuat
+    document.addEventListener('DOMContentLoaded', function() {
+        checkProfileImage();
+    });
 </script>

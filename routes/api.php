@@ -103,3 +103,5 @@ Route::middleware(['auth', 'web'])->group(function () {
     Route::get('/history/data', [InternController::class, 'historyDataIndex'])->name('history.data');
     Route::get('/history/scores', [AssessmentController::class, 'scoresIndex'])->name('history.scores');
 });
+
+Route::get('/export', [ReportController::class, 'exportInternsScore']);
