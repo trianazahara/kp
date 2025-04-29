@@ -529,6 +529,14 @@ class AssessmentController extends Controller
     public function generateCertificate($id_magang)
 {
     try {
+        // Cek apakah ZipArchive tersedia
+        if (!class_exists('ZipArchive')) {
+            \Log::error('ZipArchive class tidak tersedia. Silakan aktifkan PHP extension zip.');
+            return response()->json([
+                'message' => 'PHP Extension zip tidak tersedia. Silakan aktifkan extension zip di php.ini dan restart web server.'
+            ], 500);
+        }
+
         // Ambil data lengkap peserta
         $assessment = DB::select("
             SELECT 
@@ -591,38 +599,59 @@ class AssessmentController extends Controller
         $jumlah = array_sum($nilai);
         $rata_rata = $jumlah / count($nilai);
         
-        // Periksa path file dan tangani kesalahan dengan benar
-        $templatePath = public_path($template->file_path);
-        
-        // Verifikasi apakah file template ada
-        if (!file_exists($templatePath)) {
-            // Coba temukan path yang benar
-            $alternativePath = storage_path('app/public/' . $template->file_path);
+        // Cari template di berbagai lokasi yang mungkin
+        $possiblePaths = [
+            // Path relatif dari storage/app/public/templates (hanya nama file)
+            storage_path('app/public/templates/' . basename($template->file_path)),
             
-            if (file_exists($alternativePath)) {
-                $templatePath = $alternativePath;
-            } else {
-                // Coba path lain jika diperlukan
-                $otherPath = base_path('public/' . $template->file_path);
-                
-                if (file_exists($otherPath)) {
-                    $templatePath = $otherPath;
-                } else {
-                    // Catat kesalahan dengan informasi path detail
-                    \Log::error('File template tidak ditemukan di: ' . $templatePath);
-                    \Log::error('Path alternatif yang diperiksa: ' . $alternativePath);
-                    \Log::error('Path lain yang diperiksa: ' . $otherPath);
-                    
-                    return response()->json([
-                        'message' => 'File template tidak ditemukan. Silakan periksa path file di database.',
-                        'path_checked' => [
-                            'original' => $templatePath,
-                            'alternative' => $alternativePath,
-                            'other' => $otherPath
-                        ]
-                    ], 404);
-                }
+            // Path relatif dari storage/app/public
+            storage_path('app/public/' . $template->file_path),
+            
+            // Path relatif dari public
+            public_path($template->file_path),
+            
+            // Path absolut (jika disimpan sebagai path absolut)
+            $template->file_path,
+            
+            // Opsi terakhir: cari semua file .docx di folder templates dan ambil yang pertama
+            storage_path('app/public/templates')
+        ];
+
+        $templatePath = null;
+        $lastDir = null; // Untuk mencari file .docx jika opsi terakhir
+        
+        foreach ($possiblePaths as $path) {
+            if (is_dir($path)) {
+                // Jika path adalah direktori, simpan untuk pencarian file nanti
+                $lastDir = $path;
+                continue;
             }
+            
+            if (file_exists($path)) {
+                $templatePath = $path;
+                \Log::info('Template ditemukan di: ' . $path);
+                break;
+            }
+        }
+        
+        // Jika masih tidak ditemukan, cari file .docx di direktori templates
+        if (!$templatePath && $lastDir) {
+            $files = glob($lastDir . '/*.docx');
+            if (!empty($files)) {
+                $templatePath = $files[0]; // Ambil file .docx pertama yang ditemukan
+                \Log::info('Menggunakan template alternatif: ' . $templatePath);
+            }
+        }
+        
+        // Jika masih tidak ditemukan juga, kembalikan error yang jelas
+        if (!$templatePath || !file_exists($templatePath)) {
+            \Log::error('Template tidak ditemukan di semua lokasi yang dicoba');
+            return response()->json([
+                'message' => 'Template sertifikat tidak ditemukan di semua lokasi yang dicoba.',
+                'paths_checked' => $possiblePaths,
+                'template_id' => $template->id ?? 'unknown',
+                'template_path' => $template->file_path ?? 'unknown'
+            ], 404);
         }
         
         // Buat file temp dengan pemeriksaan direktori yang tepat

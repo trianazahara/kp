@@ -5,7 +5,7 @@ $notifications = $notifications ?? [];
 ?>
 
 <header class="fixed top-0 right-0 left-64 bg-white border-b z-10">
-    <div class="flex justify-end items-center p-1 mr-4">
+    <div class="flex justify-end items-center p-3 mr-4">
         <div class="flex items-center gap-3">
             <!-- Notification Dropdown -->
             <div class="relative" id="notification-dropdown">
@@ -57,33 +57,33 @@ $notifications = $notifications ?? [];
                 </div>
             </div>
 
-             <!-- Profile Dropdown -->
-    <div class="relative" id="profile-menu">
-        <button
-            type="button"
-            class="flex items-center gap-3 cursor-pointer focus:outline-none"
-            onclick="toggleProfileDropdown()"
-        >
-            <div class="text-right">
-                <p class="text-gray-700">{{ auth()->user()->nama }}</p>
-                <p class="text-gray-500 text-sm">{{ ucfirst(auth()->user()->role) }}</p>
-            </div>
-            <div class="flex flex-col items-center gap-1">
-            @if(auth()->user()->profile_picture)
-<img
-    src="{{ secure_asset('storage/app/public/profile_pictures' . auth()->user()->profile_picture) }}"
-    alt="Profile"
-    class="w-10 h-10 rounded-full object-cover"
-    onerror="this.onerror=null; this.src='/images/default-avatar.png'"
-/>
-@else
-<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center">
-    <span class="text-sm font-medium">{{ substr(auth()->user()->nama, 0, 1) }}</span>
-</div>
-@endif
-                <i class="fas fa-chevron-down text-gray-400 text-xs transform transition-transform duration-200" id="profile-arrow"></i>
-            </div>
-        </button>
+            <!-- Profile Dropdown -->
+            <div class="relative" id="profile-menu">
+                <button
+                    type="button"
+                    class="flex items-center gap-3 cursor-pointer focus:outline-none"
+                    onclick="toggleProfileDropdown()"
+                >
+                    <div class="text-right">
+                        <p class="text-gray-700">{{ auth()->user()->nama }}</p>
+                        <p class="text-gray-500 text-sm">{{ ucfirst(auth()->user()->role) }}</p>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        @if(auth()->user()->profile_picture)
+                            <img
+                                src="{{ asset('storage/' . auth()->user()->profile_picture) }}"
+                                alt="Profile"
+                                class="w-10 h-10 rounded-full object-cover border border-gray-200"
+                                onerror="this.onerror=null; this.src='{{ asset('images/default-avatar.png') }}'"
+                            />
+                        @else
+                            <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                                <span class="text-sm font-medium">{{ substr(auth()->user()->nama, 0, 1) }}</span>
+                            </div>
+                        @endif
+                        <i class="fas fa-chevron-down text-gray-400 text-xs transform transition-transform duration-200 mt-1" id="profile-arrow"></i>
+                    </div>
+                </button>
 
                 <!-- Profile Dropdown Menu -->
                 <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200 hidden" id="profile-dropdown">
@@ -116,6 +116,7 @@ $notifications = $notifications ?? [];
         const profileMenu = document.getElementById('profile-dropdown');
         notificationMenu.classList.toggle('hidden');
         profileMenu.classList.add('hidden');
+        document.getElementById('profile-arrow').classList.remove('rotate-180');
     }
 
     // Toggle profile dropdown
@@ -135,13 +136,35 @@ $notifications = $notifications ?? [];
         const notificationMenu = document.getElementById('notification-menu');
         const profileMenu = document.getElementById('profile-dropdown');
 
-        if (!notificationDropdown.contains(event.target)) {
-            notificationMenu.classList.add('hidden');
+        if (notificationDropdown && !notificationDropdown.contains(event.target)) {
+            if (notificationMenu) {
+                notificationMenu.classList.add('hidden');
+            }
         }
 
-        if (!profileDropdown.contains(event.target)) {
-            profileMenu.classList.add('hidden');
-            document.getElementById('profile-arrow').classList.remove('rotate-180');
+        if (profileDropdown && !profileDropdown.contains(event.target)) {
+            if (profileMenu) {
+                profileMenu.classList.add('hidden');
+            }
+            const profileArrow = document.getElementById('profile-arrow');
+            if (profileArrow) {
+                profileArrow.classList.remove('rotate-180');
+            }
         }
+    });
+
+    // Debug function untuk membantu troubleshooting
+    function checkProfileImage() {
+        const user = {
+            nama: "{{ auth()->user()->nama }}",
+            profile_picture: "{{ auth()->user()->profile_picture }}",
+            profile_path: "{{ auth()->user()->profile_picture ? asset('storage/' . auth()->user()->profile_picture) : 'tidak ada' }}"
+        };
+        console.log('User data:', user);
+    }
+    
+    // Panggil fungsi ini saat halaman dimuat
+    document.addEventListener('DOMContentLoaded', function() {
+        checkProfileImage();
     });
 </script>
