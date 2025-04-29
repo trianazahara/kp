@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\AssessmentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\DocumentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -75,14 +76,23 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('settings')->name('settings.')->group(function () {
         Route::get('/', [SettingsController::class, 'index'])->name('index');
         Route::post('/update-profile', [SettingsController::class, 'updateProfile'])->name('update-profile');
-        Route::post('/upload-photo', [SettingsController::class, 'uploadProfilePicture'])->name('upload-photo');
+        Route::post('/upload-photo', [SettingsController::class, 'uploadPhoto'])->name('upload-photo');
         Route::delete('/delete-photo', [SettingsController::class, 'deletePhoto'])->name('delete-photo');
         Route::post('/change-password', [SettingsController::class, 'changePassword'])->name('change-password');
-        
-        // Template
-        Route::post('/upload-template', [SettingsController::class, 'uploadTemplate'])->name('upload-template');
-        Route::delete('/delete-template/{id}', [SettingsController::class, 'deleteTemplate'])->name('delete-template');
-        Route::get('/preview-template/{id}', [SettingsController::class, 'previewTemplate'])->name('preview-template');
+    });
+    
+    // Template Document Management
+    Route::prefix('templates')->name('templates.')->group(function () {
+        Route::post('/upload', [DocumentController::class, 'uploadTemplate'])->name('upload');
+        Route::get('/preview/{id}', [DocumentController::class, 'previewTemplate'])->name('preview');
+        Route::get('/download/{id}', [DocumentController::class, 'downloadTemplate'])->name('download');
+        Route::delete('/delete/{id}', [DocumentController::class, 'deleteTemplate'])->name('delete');
+    });
+    
+    // Sertifikat routes
+    Route::prefix('certificates')->name('sertifikat.')->group(function () {
+        Route::get('/generate/{id}', [DocumentController::class, 'generateSertifikat'])->name('generate');
+        Route::get('/download/{id}', [DocumentController::class, 'downloadSertifikat'])->name('download');
     });
 });
 
@@ -134,5 +144,13 @@ Route::prefix('api')->group(function () {
         Route::get('/notifications/unread-count', [NotificationController::class, 'getUnreadCount'])->name('api.notifications.unread');
         Route::put('/notifications/{id}/mark-as-read', [NotificationController::class, 'markAsRead'])->name('api.notifications.markAsRead');
         Route::put('/notifications/mark-all-as-read', [NotificationController::class, 'markAllAsRead'])->name('api.notifications.markAllAsRead');
+    });
+    
+    // Document API
+    Route::middleware('auth')->group(function() {
+        Route::get('/templates', [DocumentController::class, 'getTemplates'])->name('api.templates.get');
+        Route::post('/templates/upload', [DocumentController::class, 'uploadTemplateApi'])->name('api.templates.upload');
+        Route::delete('/templates/delete/{id}', [DocumentController::class, 'deleteTemplateApi'])->name('api.templates.delete');
+        Route::get('/templates/preview/{id}', [DocumentController::class, 'previewTemplateApi'])->name('api.templates.preview');
     });
 });
