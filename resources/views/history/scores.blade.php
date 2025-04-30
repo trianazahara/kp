@@ -486,32 +486,33 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Tambahkan fungsi ini di bagian awal script
-    function calculateWorkingDays(startDate, endDate) {
-        if (!startDate || !endDate) return 0;
-        
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        
-        // Periksa validitas tanggal
-        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            console.error('Invalid date format:', { startDate, endDate });
-            return 'N/A';
-        }
-        
-        let workingDays = 0;
-        let current = new Date(start);
-
-        while (current <= end) {
-            // 0 = Sunday, 6 = Saturday
-            if (current.getDay() !== 0 && current.getDay() !== 6) {
-                workingDays++;
-            }
-            current.setDate(current.getDate() + 1);
-        }
-
-        return workingDays;
+    // Modifikasi fungsi calculateWorkingDays di file pertama untuk memastikan format tanggal yang benar
+function calculateWorkingDays(startDate, endDate) {
+    if (!startDate || !endDate) return 0;
+    
+    // Pastikan startDate dan endDate adalah objek Date yang valid
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Periksa validitas tanggal
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        console.error('Invalid date format:', { startDate, endDate });
+        return 0; // Kembalikan 0 daripada 'N/A'
     }
+    
+    let workingDays = 0;
+    let current = new Date(start);
+
+    while (current <= end) {
+        // 0 = Sunday, 6 = Saturday
+        if (current.getDay() !== 0 && current.getDay() !== 6) {
+            workingDays++;
+        }
+        current.setDate(current.getDate() + 1);
+    }
+
+    return workingDays;
+}
 
     // Populate form with data
     function populateEditForm(data) {
@@ -536,17 +537,19 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('Tanggal masuk:', data.tanggal_masuk);
         console.log('Tanggal keluar:', data.tanggal_keluar);
         
-        // Ganti bagian ini dalam populateEditForm
+        // Kemudian di fungsi populateEditForm, tambahkan logging untuk debugging:
         if (data.tanggal_masuk && data.tanggal_keluar) {
-            console.log('Tanggal masuk:', data.tanggal_masuk);
-            console.log('Tanggal keluar:', data.tanggal_keluar);
+            console.log('Tanggal masuk (raw):', data.tanggal_masuk);
+            console.log('Tanggal keluar (raw):', data.tanggal_keluar);
             
-            // Gunakan fungsi yang sudah terbukti berhasil
+            // Pastikan format tanggal benar
             const workingDays = calculateWorkingDays(data.tanggal_masuk, data.tanggal_keluar);
             console.log('Working days calculated:', workingDays);
-            document.getElementById('totalHariKerja').textContent = workingDays;
+            
+            // Tetapkan nilai 0 jika hasilnya NaN atau undefined
+            document.getElementById('totalHariKerja').textContent = workingDays || 0;
         } else {
-            document.getElementById('totalHariKerja').textContent = 'N/A';
+            document.getElementById('totalHariKerja').textContent = '0';
         }
     }
 
