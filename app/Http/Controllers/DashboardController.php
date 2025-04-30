@@ -88,6 +88,50 @@ class DashboardController extends Controller
     }
     
     /**
+     * Mendapatkan data peserta magang per bidang
+     */
+    private function getInternsByDepartment()
+    {
+        try {
+            $departments = DB::table('peserta_magang as p')
+                ->select('b.nama_bidang', DB::raw('COUNT(*) as count'))
+                ->join('bidang as b', 'p.id_bidang', '=', 'b.id_bidang')
+                ->whereIn('p.status', ['aktif', 'almost'])
+                ->groupBy('b.id_bidang', 'b.nama_bidang')
+                ->get();
+            
+            $result = [];
+            foreach ($departments as $dept) {
+                $result[strtolower($dept->nama_bidang)] = $dept->count;
+            }
+            
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('Error getting interns by department: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Mendapatkan data peserta magang yang akan selesai dalam 7 hari
+     */
+    private function getCompletingSoonInterns()
+    {
+        try {
+            $completingSoon = PesertaMagang::select('peserta_magang.*', 'b.nama_bidang')
+                ->leftJoin('bidang as b', 'peserta_magang.id_bidang', '=', 'b.id_bidang')
+                ->where('peserta_magang.status', 'almost')
+                ->orderBy('peserta_magang.tanggal_keluar', 'asc')
+                ->get();
+            
+            return $completingSoon;
+        } catch (\Exception $e) {
+            Log::error('Error getting completing soon interns: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
      * API endpoint untuk refresh data dashboard secara asinkron
      */
     public function refreshData()

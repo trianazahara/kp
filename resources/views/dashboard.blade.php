@@ -107,7 +107,9 @@
         </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 transform transition-all duration-300 hover:shadow-lg">
             <div id="completing-soon-table-container">
-                @if(isset($stats['completingSoon']['interns']) && count($stats['completingSoon']['interns']) > 0)
+                @if(isset($stats['completingSoon']['interns']) && 
+                    (is_array($stats['completingSoon']['interns']) || $stats['completingSoon']['interns'] instanceof \Countable) && 
+                    count($stats['completingSoon']['interns']) > 0)
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
@@ -120,11 +122,13 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($stats['completingSoon']['interns'] as $intern)
                             <tr class="hover:bg-gray-50 transition-colors duration-200">
-                                <td class="px-6 py-4 whitespace-nowrap">{{ $intern->nama ?? '-' }}</td>
-                                <td class="px-6 py-4 whitespace-nowrap">{{ $intern->nama_bidang ?? '-' }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">{{ is_object($intern) ? $intern->nama : ($intern['nama'] ?? '-') }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">{{ is_object($intern) ? $intern->nama_bidang : ($intern['nama_bidang'] ?? '-') }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    @if(isset($intern->tanggal_keluar))
+                                    @if(is_object($intern) && isset($intern->tanggal_keluar))
                                         {{ \Carbon\Carbon::parse($intern->tanggal_keluar)->format('d M Y') }}
+                                    @elseif(is_array($intern) && isset($intern['tanggal_keluar']))
+                                        {{ \Carbon\Carbon::parse($intern['tanggal_keluar'])->format('d M Y') }}
                                     @else
                                         -
                                     @endif
@@ -153,6 +157,10 @@
             axios.get('/api/dashboard/refresh')
                 .then(function(response) {
                     const stats = response.data;
+                    
+                    // Debug output to console
+                    console.log('Dashboard refresh data:', stats);
+                    console.log('Completing soon data:', stats.completingSoon);
                     
                     // Update stats counts
                     document.getElementById('active-interns-count').textContent = stats.activeInterns.total;
@@ -233,6 +241,9 @@
         
         // Refresh data every 60 seconds
         setInterval(refreshDashboardData, 60000);
+        
+        // Also refresh immediately when page loads
+        refreshDashboardData();
     });
 </script>
 @endsection

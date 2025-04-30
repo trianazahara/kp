@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
         iframe.style.display = 'none';
         
         // Set iframe source
-        iframe.src = `/templates/preview/${templateId}`;
+        iframe.src = /templates/preview/${templateId};
         
         // Disable scrolling pada body
         document.body.style.overflow = 'hidden';
@@ -385,7 +385,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     downloadBtn.addEventListener('click', function() {
         if (currentTemplateId) {
-            window.location.href = `/templates/download/${currentTemplateId}`;
+            window.location.href = /templates/download/${currentTemplateId};
         }
     });
 
